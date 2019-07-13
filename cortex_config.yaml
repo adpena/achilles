@@ -1,0 +1,7 @@
+FUNC: cortex_function.py
+ARGS: [[1,2,3,4,5], [1,3,5,7,9], [1,1], [1,2,3]]
+DEP_FUNCS: ()
+MODULES: ()
+CALLBACK: None
+CALLBACK_ARGS: ()
+GROUP: 'default'
