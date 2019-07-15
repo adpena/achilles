@@ -1,5 +1,5 @@
 FUNC: cortex_function.py
-ARGS: [['https://www.nytimes.com/2019/07/14/us/ice-immigration-raids.html?action=click&module=News&pgtype=Homepage']]
+ARGS: [['https://www.nytimes.com/2019/07/14/us/ice-immigration-raids.html']]
 DEP_FUNCS: ()
 MODULES: ()
 CALLBACK: None

@@ -166,7 +166,8 @@ class CortexServer(Protocol):
                 print(client.__dict__)
 
     def startJob(self, func, args=()):
-        # Here is where the magic happens. Hungry consumers - feed them once and they keep asking for more until the args are exhausted.
+        # Here is where the magic happens. Hungry consumers - feed them once and they keep
+        # asking for more until the args are exhausted.
         print("MAP FUNC:", func)
         print("MAP ARGS:", args)
         ip_list = []
@@ -225,7 +226,7 @@ class CortexServerFactory(Factory):
         return final_results
 
 
-def runCortexServer(port=None):
+def runCortexServer():
     load_dotenv()
     port = int(getenv("PORT"))
     endpoint = TCP4ServerEndpoint(reactor, port)
