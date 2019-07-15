@@ -45,7 +45,7 @@ class CortexServer(Protocol):
 
     def dataReceived(self, data):
         data = cloudpickle.loads(data)
-
+        print('RECEIVED:', data)
         if 'USERNAME' in data and 'SECRET_KEY' in data:
             if data['USERNAME'] == self.USERNAME and data['SECRET_KEY'] == self.SECRET_KEY:
                 # The user is authenticated to distribute commands.
@@ -60,9 +60,9 @@ class CortexServer(Protocol):
                 # for client in self.factory.clients:
                     # print(client.__dict__)
             else:
-                self.transport.write({
+                self.transport.write(cloudpickle.dumps({
                     'AUTHENTICATED': self.AUTHENTICATED,
-                })
+                }))
                 stderr.write('This USERNAME and SECRET_KEY cannot be authenticated. Closing connection.')
                 self.transport.loseConnection()
                 # for client in self.factory.clients:
