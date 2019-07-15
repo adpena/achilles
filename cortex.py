@@ -45,12 +45,21 @@ class Cortex(Protocol):
         elif 'AUTHENTICATED' in data:
             if data['AUTHENTICATED'] is True:
                 stdout.write('ALERT: Authentication successful!\n')
-                cortex_config_path = input("Enter path to cortex_config.yaml:\t")
+                cortex_config_path = input("Enter path to cortex_config.yaml to begin job:\t")
                 self.cortex_compute(cortex_config_path=cortex_config_path)
 
             else:
                 stderr.write('WARNING: Authentication failed.')
                 self.transport.loseConnection()
+        elif 'PROCEED' in data:
+            proceed = input("Press ENTER when the job is ready to proceed:\t")
+            print('PROCEEDING WITH DISTRIBUTING ARGUMENTS AMONGST THE CONNECTED NODES...')
+            self.transport.write(cloudpickle.dumps({
+                'VERIFY': True
+            }))
+
+        elif 'FINAL_RESULT' in data:
+            print('FINAL RESULT:', data['FINAL_RESULT'])
 
         else:
             print(data)

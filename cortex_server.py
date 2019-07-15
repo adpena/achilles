@@ -22,6 +22,7 @@ class CortexServer(Protocol):
         self.DATETIME_CONNECTED = ''
         self.AUTHENTICATED = False
         self.CLIENT_ID = self.factory.totalProtocols
+        self.READY = False
 
     def connectionMade(self):
         print('Starting connection #:', self.factory.numProtocols)
@@ -29,14 +30,12 @@ class CortexServer(Protocol):
         self.factory.totalProtocols = self.factory.totalProtocols + 1
         print('Number of connections:', self.factory.numProtocols)
         self.factory.clients.append(self)
-        packet = {
+        packet = cloudpickle.dumps({
             'GREETING': f"Welcome! There are currently {self.factory.numProtocols} open connections.\n",
             'CLIENT_ID': self.CLIENT_ID
 
-        }
-        self.transport.write(cloudpickle.dumps(
-            packet
-        ))
+        })
+        self.transport.write(packet)
 
     def connectionLost(self, reason):
         self.factory.numProtocols = self.factory.numProtocols - 1
@@ -46,6 +45,7 @@ class CortexServer(Protocol):
 
     def dataReceived(self, data):
         data = cloudpickle.loads(data)
+
         if 'USERNAME' in data and 'SECRET_KEY' in data:
             if data['USERNAME'] == self.USERNAME and data['SECRET_KEY'] == self.SECRET_KEY:
                 # The user is authenticated to distribute commands.
@@ -76,7 +76,8 @@ class CortexServer(Protocol):
             self.CLIENT_ID = data['CLIENT_ID']
             # for client in self.factory.clients:
                 # print(client.__dict__)
-        elif self.AUTHENTICATED is True:
+        elif self.AUTHENTICATED is True and 'FUNC' in data:
+            self.factory.cortex = self
             func = data['FUNC']
             args = data['ARGS']
             dep_funcs = data['DEP_FUNCS']
@@ -89,19 +90,61 @@ class CortexServer(Protocol):
             # Relics of testing
             # print(kwargs)
             print(args)
-            self.map(func, args)
-        elif 'RESULTS' in data:
+            # self.map(func, args)
+            self.startJob(func, args)
+        elif self.AUTHENTICATED is False and 'READY' in data:
+            print(data)
+            self.READY = True
+
+        elif self.AUTHENTICATED is True and 'VERIFY' in data:
+            for worker in self.factory.workers:
+                try:
+                    packet = cloudpickle.dumps({
+                        'ARG': next(self.factory.args),
+                        'ARGS_COUNTER': self.factory.args_counter
+                    })
+                    worker.transport.write(packet)
+                    worker.READY = False
+                    print(f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}")
+                    self.factory.args_counter = self.factory.args_counter + 1
+
+                except StopIteration:
+                    print('The arguments iterable was empty.')
+
+        elif 'RESULT' in data:
+            self.READY = True
             print('RESULTS PACKET:', data)
+            self.factory.results.append(data)
+            try:
+                packet = cloudpickle.dumps({
+                    'ARG': next(self.factory.args),
+                    'ARGS_COUNTER': self.factory.args_counter
+                })
+                self.transport.write(packet)
+                self.READY = False
+                print(f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}")
+                self.factory.args_counter = self.factory.args_counter + 1
+            except StopIteration:
+                print("The arguments have been exhausted.")
+                if len(self.factory.workers) > 1:
+                    if self.factory.lastCounter == 0:
+                        self.factory.cortex.transport.write(cloudpickle.dumps({
+                            'FINAL_RESULT': self.factory.gatherResults(self.factory)
+                        }))
+
+                    else:
+                        self.factory.lastCounter = self.factory.lastCounter - 1
+                elif len(self.factory.workers) == 1:
+                    self.factory.cortex.transport.write(cloudpickle.dumps({
+                        'FINAL_RESULT': self.factory.gatherResults(self.factory)
+                    }))
 
         else:
             print(data)
             for client in self.factory.clients:
                 print(client.__dict__)
 
-    def chunker(self, seq, size):
-        return (seq[pos:pos + size] for pos in range(0, len(seq), size))
-
-    def map(self, func, args=[], dep_funcs=(), modules=(), callback=None, callback_args=(), group='default'):
+    def startJob(self, func, args=()):
         # Here is where the magic happens.
         print('MAP FUNC:', func)
         print('MAP ARGS:', args)
@@ -109,6 +152,7 @@ class CortexServer(Protocol):
         ip_map = []
         workers_list = []
         cpu_total = 0
+        self.factory.args = iter(args)
         for client in self.factory.clients:
             if client.IP not in ip_list:
                 ip_list.append(client.IP)
@@ -123,41 +167,16 @@ class CortexServer(Protocol):
         split_args = []
         client_counter = 0
         print(workers_list)
-        for i in range(len(args)):
-
-            if client_counter < len(workers_list):
-                print(client_counter)
-                packet = {
-                    'FUNC': func,
-                    'ARG': args[i],
-                    'DEP_FUNCS': dep_funcs,
-                    'MODULES': modules,
-                    'CALLBACK': callback,
-                    'CALLBACK_ARGS': callback_args,
-                    'GROUP': group,
-                }
-                workers_list[client_counter].transport.write(cloudpickle.dumps(
-                    packet
-                ))
-                print(f'Regular packet: {packet} sent to worker {workers_list[client_counter].CLIENT_ID}')
-                client_counter = client_counter + 1
-
-            else:
-                client_counter = 0
-                packet = {
-                    'FUNC': func,
-                    'ARG': args[i],
-                    'DEP_FUNCS': dep_funcs,
-                    'MODULES': modules,
-                    'CALLBACK': callback,
-                    'CALLBACK_ARGS': callback_args,
-                    'GROUP': group,
-                }
-                workers_list[client_counter].transport.write(cloudpickle.dumps(
-                    packet
-                ))
-                print(f'Reset packet: {packet} sent to worker {workers_list[client_counter].CLIENT_ID}')
-                client_counter = client_counter + 1
+        self.factory.workers = workers_list
+        self.factory.lastCounter = len(self.factory.workers) - 1
+        for client in self.factory.workers:
+            client.transport.write(cloudpickle.dumps({
+                'START_JOB': True,
+                'FUNC': func,
+            }))
+        self.factory.cortex.transport.write(cloudpickle.dumps({
+            'PROCEED': True,
+        }))
 
 
 class CortexServerFactory(Factory):
@@ -166,10 +185,27 @@ class CortexServerFactory(Factory):
     numProtocols = 0
     totalProtocols = 0
     clients = []
+    workers = []
+    cortex = None
+    func = None
+    args = None
+    args_counter = 0
+    results = []
+    lastCounter = 0
 
     def buildProtocol(self, addr):
         return CortexServer(factory=CortexServerFactory)
 
+    def gatherResults(self):
+        final_results = []
+        self.results = sorted(self.results, key=lambda k: k['ARGS_COUNTER'])
+        for result in self.results:
+            final_results.append(result['RESULT'])
+        '''self.func = None
+        self.args = None
+        self.args_counter = 0
+        self.results = []'''
+        return final_results
 
 def runCortexServer(port=None):
     load_dotenv()

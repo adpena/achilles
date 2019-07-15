@@ -8,13 +8,14 @@ import cloudpickle
 from os import getenv
 from sys import stderr, stdout
 
-from multiprocessing import Pool
+from multiprocessing import Pool, Process, Queue
+from concurrent.futures import ProcessPoolExecutor
 
 from dotenv import load_dotenv
 
 from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 import multiprocessing
 from datetime import datetime
 
@@ -28,8 +29,16 @@ class CortexNode(Protocol):
         self.SECRET_KEY = getenv('SECRET_KEY')
         self.connected = False
         self.client_id = -1
+        self.func = None
+        self.args = []
+        self.job_in_progress = False
+
 
     def dataReceived(self, data):
+        # pqueue.put(data)
+        self.handleData(data)
+
+    def handleData(self, data):
         data = cloudpickle.loads(data)
         if 'GREETING' in data:
             greeting = data['GREETING']
@@ -44,66 +53,41 @@ class CortexNode(Protocol):
                 'CLIENT_ID': self.client_id,
             })
             self.transport.write(packet)
-        elif 'FUNC' in data:
+        elif 'START_JOB' in data:
             func = data['FUNC']
-            arg = data['ARG']
-            print('ARGS:', arg)
-            with Pool(multiprocessing.cpu_count()) as p:
-                results = p.map(func, arg)
-                p.close()
-                p.join()
-
+            self.func = func
+            self.job_in_progress = True
             packet = cloudpickle.dumps({
                 'CLIENT_ID': self.client_id,
-                'RESULTS': results
+                'READY': True
             })
+            print('START_JOB RESPONSE:', packet)
             self.transport.write(packet)
-        else:
+        elif 'ARG' in data:
+            with Pool(multiprocessing.cpu_count()) as p:
+                result = p.map(self.func, data['ARG'])
+            packet = cloudpickle.dumps({
+                'ARGS_COUNTER': data['ARGS_COUNTER'],
+                'RESULT': result
+            })
+            print('RESPONSE PACKET:', packet)
+            self.transport.write(packet)
+
+
+def reader_proc(queue):
+    while True:
+        data = queue.get()
+        data = cloudpickle.loads(data)
+        if 'GREETING' in data:
             print(data)
 
+        elif 'FUNC' in data:
+            print(data)
 
-'''async def worker(name, queue):
-    while True:
-        # Get a "work item" out of the queue.
-        arg = await queue.get()
-
-        # Now that you have the arg, perform the func on it.
-
-        # Notify the queue that the "work item" has been processed.
-        queue.task_done()
-
-
-async def processJobs():
-    # Create a queue that we will use to store our "workload".
-    queue = asyncio.Queue()
-
-    # Generate random timings and put them into the queue.
-    total_sleep_time = 0
-    for _ in range(20):
-        sleep_for = random.uniform(0.05, 1.0)
-        total_sleep_time += sleep_for
-        queue.put_nowait(sleep_for)
-
-    # Create three worker tasks to process the queue concurrently.
-    tasks = []
-    for i in range(3):
-        task = asyncio.create_task(worker(f'worker-{i}', queue))
-        tasks.append(task)
-
-    # Wait until the queue is fully processed.
-    started_at = time.monotonic()
-    await queue.join()
-    total_slept_for = time.monotonic() - started_at
-
-    # Cancel our worker tasks.
-    for task in tasks:
-        task.cancel()
-    # Wait until all worker tasks are cancelled.
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-    print('====')
-    print(f'3 workers slept in parallel for {total_slept_for:.2f} seconds')
-    print(f'total expected sleep time: {total_sleep_time:.2f} seconds')'''
+        elif data == 'ABORT':
+            break
+        else:
+            print(data)
 
 
 def runCortexNode():
@@ -115,4 +99,11 @@ def runCortexNode():
 
 
 if __name__ == '__main__':
+    pqueue = Queue()
+    rqueue = Queue()
+
+    reader_p = Process(target=reader_proc, args=(pqueue,))
+    reader_p.daemon = True
+    reader_p.start()
+
     runCortexNode()
