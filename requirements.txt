@@ -3,3 +3,4 @@ python-dotenv
 twisted
 pypiwin32
 pyyaml
+html2text

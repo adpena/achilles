@@ -78,9 +78,9 @@ class Cortex(Protocol):
         callback = cortex_config['CALLBACK']
         callback_args = cortex_config['CALLBACK_ARGS']
         group = cortex_config['GROUP']
-        from cortex_function import square
+        from cortex_function import cortex_function
         packet = cloudpickle.dumps({
-            'FUNC': square,
+            'FUNC': cortex_function,
             'ARGS': args,
             'DEP_FUNCS': dep_funcs,
             'MODULES': modules,
