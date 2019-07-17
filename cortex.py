@@ -149,6 +149,10 @@ class Cortex(Protocol):
         elif "FINAL_RESULT" in data:
             print("FINAL RESULT:", data["FINAL_RESULT"])
 
+        elif "CLUSTER_STATUS" in data:
+            print("CLUSTER STATUS:", data)
+            self.command_interface()
+
         else:
             print(data)
 
@@ -196,7 +200,11 @@ class Cortex(Protocol):
         self.transport.write(packet)
 
     def get_cluster_status(self):
-        pass
+        packet = cloudpickle.dumps({
+            'GET_CLUSTER_STATUS': 'GET_CLUSTER_STATUS',
+        })
+        self.transport.write(packet)
+        print("ALERT: Requested cluster status.")
 
     def command_interface(self):
         command = input("Cortex cluster is ready to accept commands:\t")
@@ -208,7 +216,7 @@ class Cortex(Protocol):
                 f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
             )
             self.cortex_compute(
-                cortex_config_path=cortex_config_path, response_mode=response_mode
+                cortex_config_path=cortex_config_path, response_mode=response_mode,
             )
         elif command == "cluster_status":
             self.get_cluster_status()

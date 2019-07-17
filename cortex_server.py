@@ -64,6 +64,8 @@ class CortexServer(Protocol):
                     cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
                 )
                 print(f"User {data['USERNAME']} is authenticated.")
+                self.factory.cortex = self
+
                 # for client in self.factory.clients:
                 # print(client.__dict__)
             else:
@@ -86,7 +88,6 @@ class CortexServer(Protocol):
             # for client in self.factory.clients:
             # print(client.__dict__)
         elif self.AUTHENTICATED is True and "FUNC" in data:
-            self.factory.cortex = self
             func = data["FUNC"]
             args = data["ARGS"]
             dep_funcs = data["DEP_FUNCS"]
@@ -192,6 +193,25 @@ class CortexServer(Protocol):
                         print(
                             "Final results packet has been transmitted to the cortex."
                         )
+
+        elif 'GET_CLUSTER_STATUS' in data:
+            packet = {
+                'CLUSTER_STATUS': True,
+            }
+            for client in self.factory.clients:
+                packet[str(client.CLIENT_ID)] = {}
+                packet[str(client.CLIENT_ID)]['CLIENT_ID'] = str(client.CLIENT_ID)
+                packet[str(client.CLIENT_ID)]['HOST'] = str(client.HOST)
+                packet[str(client.CLIENT_ID)]['PORT'] = str(client.PORT)
+                packet[str(client.CLIENT_ID)]['CPU_COUNT'] = str(client.CPU_COUNT)
+                packet[str(client.CLIENT_ID)]['IP'] = str(client.IP)
+                packet[str(client.CLIENT_ID)]['DATETIME_CONNECTED'] = str(client.DATETIME_CONNECTED)
+                packet[str(client.CLIENT_ID)]['AUTHENTICATED'] = str(client.AUTHENTICATED)
+
+            self.factory.cortex.transport.write(cloudpickle.dumps(packet))
+
+        elif 'CLUSTER_STATUS' in data:
+            print(data)
 
         else:
             print(data)
