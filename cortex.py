@@ -11,7 +11,7 @@ import json
 from dotenv import load_dotenv
 import yaml
 
-from twisted.internet.protocol import Protocol, ReconnectingClientFactory
+from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
 import multiprocessing
@@ -66,12 +66,14 @@ class Cortex(Protocol):
                 self.transport.write(cloudpickle.dumps({"VERIFY": True}))
             else:
                 stderr.write("ALERT: Job cancelled.")
+                self.command_interface()
 
         elif "RESULT" in data and self.response_mode == "STREAM":
             # If STREAM is your chosen response mode, handle results packets here.
             print(data)
-            if data["ARGS_COUNTER"] == self.args_count - 1:
-                self.command_interface()
+            # Prematurely calls command_interface in certain instances when the last results packet is returned while jobs remain outstanding.
+            # if data["ARGS_COUNTER"] == self.args_count - 1:
+                # self.command_interface()
 
         elif "RESULT" in data and self.response_mode == "SQLITE":
             if self.sqlite_db_created is False:
@@ -81,7 +83,7 @@ class Cortex(Protocol):
                 c.execute(
                     "CREATE TABLE results (args_counter real, abs_counter real, result text)"
                 )
-                print(len(data["RESULT"]), data["RESULT"])
+                self.sqlite_db_created = True
                 if len(data["RESULT"]) == 1:
                     try:
                         instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {data['RESULT'][0]})"""
@@ -93,9 +95,9 @@ class Cortex(Protocol):
                         # print(instruction)
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
-                    finally:
-                        if data["ARGS_COUNTER"] == self.args_count - 1:
-                            self.command_interface()
+                    # finally:
+                        # if data["ARGS_COUNTER"] == self.args_count - 1:
+                            # self.command_interface()
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -109,8 +111,8 @@ class Cortex(Protocol):
                             c.execute(instruction)
                             self.abs_counter + self.abs_counter + 1
 
-                    if data["ARGS_COUNTER"] == self.args_count - 1:
-                        self.command_interface()
+                    # if data["ARGS_COUNTER"] == self.args_count - 1:
+                        # self.command_interface()
                 c.close()
 
             else:
@@ -127,9 +129,9 @@ class Cortex(Protocol):
                         # print(instruction)
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
-                    finally:
-                        if data["ARGS_COUNTER"] == self.args_count - 1:
-                            self.command_interface()
+                    # finally:
+                        # if data["ARGS_COUNTER"] == self.args_count - 1:
+                            # self.command_interface()
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -142,19 +144,25 @@ class Cortex(Protocol):
                             # print(instruction)
                             c.execute(instruction)
                             self.abs_counter + self.abs_counter + 1
-                    if data["ARGS_COUNTER"] == self.args_count - 1:
-                        self.command_interface()
+                    # if data["ARGS_COUNTER"] == self.args_count - 1:
+                        # self.command_interface()
                 c.close()
 
         elif "FINAL_RESULT" in data:
             print("FINAL RESULT:", data["FINAL_RESULT"])
+            self.command_interface()
 
         elif "CLUSTER_STATUS" in data:
             print("CLUSTER STATUS:", data)
             self.command_interface()
 
+        elif "KILL_NODE" in data:
+            stderr.write("ALERT: All cortex_nodes have been disconnected from the cluster. The cortex_server is running and accepting connections.")
+            reactor.stop()
+
         else:
             print(data)
+            self.command_interface()
 
     def cortex_compute(
         self,
@@ -206,6 +214,18 @@ class Cortex(Protocol):
         self.transport.write(packet)
         print("ALERT: Requested cluster status.")
 
+    def kill_cluster(self):
+        confirm_kill_cluster = input("WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed.")
+        if confirm_kill_cluster == 'YES':
+            packet = cloudpickle.dumps({
+                'KILL_CLUSTER': 'KILL_CLUSTER'
+            })
+            self.transport.write(packet)
+        else:
+            stderr.write("ALERT: kill_cluster aborted. ")
+            self.command_interface()
+
+
     def command_interface(self):
         command = input("Cortex cluster is ready to accept commands:\t")
         if command == "cortex_compute":
@@ -221,7 +241,7 @@ class Cortex(Protocol):
         elif command == "cluster_status":
             self.get_cluster_status()
         elif command == "kill_cluster":
-            pass
+            self.kill_cluster()
         elif command == "help":
             print("\n-------\nCommands:")
             print("cortex_compute, cluster_status, kill_cluster, help\n-------\n")

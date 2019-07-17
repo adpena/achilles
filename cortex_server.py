@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import cloudpickle
-from sys import stderr, stdout, path
+from sys import stderr
 from os import getenv
 from dotenv import load_dotenv
+import time
 
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet import reactor
@@ -139,7 +140,7 @@ class CortexServer(Protocol):
                 except StopIteration:
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
+                        if self.factory.lastCounter == 1:
                             self.factory.cortex.transport.write(
                                 cloudpickle.dumps(
                                     {
@@ -182,7 +183,7 @@ class CortexServer(Protocol):
                 except StopIteration:
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
+                        if self.factory.lastCounter == 1:
                             print(
                                 "Final results packet has been transmitted to the cortex."
                             )
@@ -210,8 +211,17 @@ class CortexServer(Protocol):
 
             self.factory.cortex.transport.write(cloudpickle.dumps(packet))
 
-        elif 'CLUSTER_STATUS' in data:
-            print(data)
+        elif 'KILL_CLUSTER' in data:
+            for client in self.factory.clients:
+                client.transport.write(cloudpickle.dumps({
+                    "KILL_NODE": "KILL_NODE",
+                }))
+
+            for client in self.factory.clients:
+                client.transport.loseConnection()
+
+        elif 'KILLED_CLUSTER' in data:
+            reactor.stop()
 
         else:
             print(data)

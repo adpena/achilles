@@ -6,7 +6,7 @@ import time
 import random
 import cloudpickle
 from os import getenv
-from sys import stderr, stdout
+from sys import exit
 
 from multiprocessing import Pool, Process, Queue
 from concurrent.futures import ProcessPoolExecutor
@@ -60,6 +60,7 @@ class CortexNode(Protocol):
             print("START_JOB RESPONSE:", packet)
             self.transport.write(packet)
         elif "ARG" in data:
+            print("ARG:", data["ARG"])
             with Pool(multiprocessing.cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
             packet = cloudpickle.dumps(
@@ -67,6 +68,10 @@ class CortexNode(Protocol):
             )
             print("RESPONSE PACKET:", packet)
             self.transport.write(packet)
+        elif "KILL_NODE" in data:
+            self.transport.write(cloudpickle.dumps({'KILLED_CLUSTER': 'KILLED_CLUSTER',}))
+            self.transport.loseConnection()
+            reactor.stop()
 
 
 def runCortexNode():
