@@ -195,32 +195,32 @@ class CortexServer(Protocol):
                             "Final results packet has been transmitted to the cortex."
                         )
 
-        elif 'GET_CLUSTER_STATUS' in data:
-            packet = {
-                'CLUSTER_STATUS': True,
-            }
+        elif "GET_CLUSTER_STATUS" in data:
+            packet = {"CLUSTER_STATUS": True}
             for client in self.factory.clients:
                 packet[str(client.CLIENT_ID)] = {}
-                packet[str(client.CLIENT_ID)]['CLIENT_ID'] = str(client.CLIENT_ID)
-                packet[str(client.CLIENT_ID)]['HOST'] = str(client.HOST)
-                packet[str(client.CLIENT_ID)]['PORT'] = str(client.PORT)
-                packet[str(client.CLIENT_ID)]['CPU_COUNT'] = str(client.CPU_COUNT)
-                packet[str(client.CLIENT_ID)]['IP'] = str(client.IP)
-                packet[str(client.CLIENT_ID)]['DATETIME_CONNECTED'] = str(client.DATETIME_CONNECTED)
-                packet[str(client.CLIENT_ID)]['AUTHENTICATED'] = str(client.AUTHENTICATED)
+                packet[str(client.CLIENT_ID)]["CLIENT_ID"] = str(client.CLIENT_ID)
+                packet[str(client.CLIENT_ID)]["HOST"] = str(client.HOST)
+                packet[str(client.CLIENT_ID)]["PORT"] = str(client.PORT)
+                packet[str(client.CLIENT_ID)]["CPU_COUNT"] = str(client.CPU_COUNT)
+                packet[str(client.CLIENT_ID)]["IP"] = str(client.IP)
+                packet[str(client.CLIENT_ID)]["DATETIME_CONNECTED"] = str(
+                    client.DATETIME_CONNECTED
+                )
+                packet[str(client.CLIENT_ID)]["AUTHENTICATED"] = str(
+                    client.AUTHENTICATED
+                )
 
             self.factory.cortex.transport.write(cloudpickle.dumps(packet))
 
-        elif 'KILL_CLUSTER' in data:
+        elif "KILL_CLUSTER" in data:
             for client in self.factory.clients:
-                client.transport.write(cloudpickle.dumps({
-                    "KILL_NODE": "KILL_NODE",
-                }))
+                client.transport.write(cloudpickle.dumps({"KILL_NODE": "KILL_NODE"}))
 
             for client in self.factory.clients:
                 client.transport.loseConnection()
 
-        elif 'KILLED_CLUSTER' in data:
+        elif "KILLED_CLUSTER" in data:
             reactor.stop()
 
         else:
@@ -233,7 +233,6 @@ class CortexServer(Protocol):
         # Flush settings in case another job has already been completed in this lifecycle.
         self.factory.args_counter = 0
         self.factory.results = []
-
 
         print("MAP FUNC:", func)
         print("MAP ARGS:", args)

@@ -73,7 +73,7 @@ class Cortex(Protocol):
             print(data)
             # Prematurely calls command_interface in certain instances when the last results packet is returned while jobs remain outstanding.
             # if data["ARGS_COUNTER"] == self.args_count - 1:
-                # self.command_interface()
+            # self.command_interface()
 
         elif "RESULT" in data and self.response_mode == "SQLITE":
             if self.sqlite_db_created is False:
@@ -96,8 +96,8 @@ class Cortex(Protocol):
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
                     # finally:
-                        # if data["ARGS_COUNTER"] == self.args_count - 1:
-                            # self.command_interface()
+                    # if data["ARGS_COUNTER"] == self.args_count - 1:
+                    # self.command_interface()
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -112,7 +112,7 @@ class Cortex(Protocol):
                             self.abs_counter + self.abs_counter + 1
 
                     # if data["ARGS_COUNTER"] == self.args_count - 1:
-                        # self.command_interface()
+                    # self.command_interface()
                 c.close()
 
             else:
@@ -130,8 +130,8 @@ class Cortex(Protocol):
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
                     # finally:
-                        # if data["ARGS_COUNTER"] == self.args_count - 1:
-                            # self.command_interface()
+                    # if data["ARGS_COUNTER"] == self.args_count - 1:
+                    # self.command_interface()
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -145,7 +145,7 @@ class Cortex(Protocol):
                             c.execute(instruction)
                             self.abs_counter + self.abs_counter + 1
                     # if data["ARGS_COUNTER"] == self.args_count - 1:
-                        # self.command_interface()
+                    # self.command_interface()
                 c.close()
 
         elif "FINAL_RESULT" in data:
@@ -157,7 +157,9 @@ class Cortex(Protocol):
             self.command_interface()
 
         elif "KILL_NODE" in data:
-            stderr.write("ALERT: All cortex_nodes have been disconnected from the cluster. The cortex_server is running and accepting connections.")
+            stderr.write(
+                "ALERT: All cortex_nodes have been disconnected from the cluster. The cortex_server is running and accepting connections."
+            )
             reactor.stop()
 
         else:
@@ -208,23 +210,20 @@ class Cortex(Protocol):
         self.transport.write(packet)
 
     def get_cluster_status(self):
-        packet = cloudpickle.dumps({
-            'GET_CLUSTER_STATUS': 'GET_CLUSTER_STATUS',
-        })
+        packet = cloudpickle.dumps({"GET_CLUSTER_STATUS": "GET_CLUSTER_STATUS"})
         self.transport.write(packet)
         print("ALERT: Requested cluster status.")
 
     def kill_cluster(self):
-        confirm_kill_cluster = input("WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed.")
-        if confirm_kill_cluster == 'YES':
-            packet = cloudpickle.dumps({
-                'KILL_CLUSTER': 'KILL_CLUSTER'
-            })
+        confirm_kill_cluster = input(
+            "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed."
+        )
+        if confirm_kill_cluster == "YES":
+            packet = cloudpickle.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
             self.transport.write(packet)
         else:
             stderr.write("ALERT: kill_cluster aborted. ")
             self.command_interface()
-
 
     def command_interface(self):
         command = input("Cortex cluster is ready to accept commands:\t")
@@ -236,7 +235,7 @@ class Cortex(Protocol):
                 f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
             )
             self.cortex_compute(
-                cortex_config_path=cortex_config_path, response_mode=response_mode,
+                cortex_config_path=cortex_config_path, response_mode=response_mode
             )
         elif command == "cluster_status":
             self.get_cluster_status()

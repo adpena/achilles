@@ -69,7 +69,9 @@ class CortexNode(Protocol):
             print("RESPONSE PACKET:", packet)
             self.transport.write(packet)
         elif "KILL_NODE" in data:
-            self.transport.write(cloudpickle.dumps({'KILLED_CLUSTER': 'KILLED_CLUSTER',}))
+            self.transport.write(
+                cloudpickle.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"})
+            )
             self.transport.loseConnection()
             reactor.stop()
 

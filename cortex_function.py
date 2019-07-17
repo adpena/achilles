@@ -3,8 +3,7 @@ from html2text import html2text
 
 
 def cortex_function(arg):
-    return arg**2
-
+    return arg ** 2
 
 
 def cortex_function2(arg):
