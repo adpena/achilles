@@ -4,3 +4,4 @@ twisted
 pypiwin32
 pyyaml
 html2text
+requests

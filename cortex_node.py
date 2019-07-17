@@ -60,6 +60,7 @@ class CortexNode(Protocol):
             print("START_JOB RESPONSE:", packet)
             self.transport.write(packet)
         elif "ARG" in data:
+            print("ARG:", data["ARG"])
             with Pool(multiprocessing.cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
             packet = cloudpickle.dumps(
@@ -78,11 +79,4 @@ def runCortexNode():
 
 
 if __name__ == "__main__":
-    pqueue = Queue()
-    rqueue = Queue()
-
-    reader_p = Process(target=reader_proc, args=(pqueue,))
-    reader_p.daemon = True
-    reader_p.start()
-
     runCortexNode()

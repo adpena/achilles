@@ -78,11 +78,4 @@ def runCortexNode():
 
 
 if __name__ == "__main__":
-    pqueue = Queue()
-    rqueue = Queue()
-
-    reader_p = Process(target=reader_proc, args=(pqueue,))
-    reader_p.daemon = True
-    reader_p.start()
-
     runCortexNode()

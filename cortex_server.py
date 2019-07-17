@@ -3,6 +3,7 @@ import cloudpickle
 from sys import stderr, stdout, path
 from os import getenv
 from dotenv import load_dotenv
+import sqlite3
 
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet import reactor
@@ -26,7 +27,6 @@ class CortexServer(Protocol):
         self.DATETIME_CONNECTED = ""
         self.AUTHENTICATED = False
         self.CLIENT_ID = self.factory.totalProtocols
-        self.READY = False
 
     def connectionMade(self):
         print("Starting connection #:", self.factory.numProtocols)
@@ -95,11 +95,12 @@ class CortexServer(Protocol):
             callback = data["CALLBACK"]
             callback_args = data["CALLBACK_ARGS"]
             group = data["GROUP"]
+            response_mode = data["RESPONSE_MODE"]
+            self.factory.response_mode = response_mode
 
             self.startJob(func, args)
         elif self.AUTHENTICATED is False and "READY" in data:
             print(f"CLIENT STATUS: {data}")
-            self.READY = True
 
         elif self.AUTHENTICATED is True and "VERIFY" in data:
             for worker in self.factory.workers:
@@ -121,26 +122,38 @@ class CortexServer(Protocol):
                     print("The arguments iterable was empty.")
 
         elif "RESULT" in data:
-            self.READY = True
             print("RESULTS PACKET:", data)
-            self.factory.results.append(data)
-            try:
-                packet = cloudpickle.dumps(
-                    {
-                        "ARG": next(self.factory.args),
-                        "ARGS_COUNTER": self.factory.args_counter,
-                    }
-                )
-                self.transport.write(packet)
-                self.READY = False
-                print(
-                    f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
-                )
-                self.factory.args_counter = self.factory.args_counter + 1
-            except StopIteration:
-                print("The arguments have been exhausted.")
-                if len(self.factory.workers) > 1:
-                    if self.factory.lastCounter == 0:
+            if self.factory.response_mode == "OBJECT":
+                self.factory.results.append(data)
+                try:
+                    packet = cloudpickle.dumps(
+                        {
+                            "ARG": next(self.factory.args),
+                            "ARGS_COUNTER": self.factory.args_counter,
+                        }
+                    )
+                    self.transport.write(packet)
+                    print(
+                        f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
+                    )
+                    self.factory.args_counter = self.factory.args_counter + 1
+                except StopIteration:
+                    print("The arguments have been exhausted.")
+                    if len(self.factory.workers) > 1:
+                        if self.factory.lastCounter == 0:
+                            self.factory.cortex.transport.write(
+                                cloudpickle.dumps(
+                                    {
+                                        "FINAL_RESULT": self.factory.gatherResults(
+                                            self.factory
+                                        )
+                                    }
+                                )
+                            )
+
+                        else:
+                            self.factory.lastCounter = self.factory.lastCounter - 1
+                    elif len(self.factory.workers) == 1:
                         self.factory.cortex.transport.write(
                             cloudpickle.dumps(
                                 {
@@ -150,20 +163,40 @@ class CortexServer(Protocol):
                                 }
                             )
                         )
-
-                    else:
-                        self.factory.lastCounter = self.factory.lastCounter - 1
-                elif len(self.factory.workers) == 1:
-                    self.factory.cortex.transport.write(
-                        cloudpickle.dumps(
-                            {"FINAL_RESULT": self.factory.gatherResults(self.factory)}
-                        )
+            elif (
+                self.factory.response_mode == "STREAM"
+                or self.factory.response_mode == "SQLITE"
+            ):
+                self.factory.cortex.transport.write(cloudpickle.dumps(data))
+                try:
+                    packet = cloudpickle.dumps(
+                        {
+                            "ARG": next(self.factory.args),
+                            "ARGS_COUNTER": self.factory.args_counter,
+                        }
                     )
+                    self.transport.write(packet)
+                    print(
+                        f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
+                    )
+                    self.factory.args_counter = self.factory.args_counter + 1
+                except StopIteration:
+                    print("The arguments have been exhausted.")
+                    if len(self.factory.workers) > 1:
+                        if self.factory.lastCounter == 0:
+                            print(
+                                "Final results packet has been transmitted to the cortex."
+                            )
+
+                        else:
+                            self.factory.lastCounter = self.factory.lastCounter - 1
+                    elif len(self.factory.workers) == 1:
+                        print(
+                            "Final results packet has been transmitted to the cortex."
+                        )
 
         else:
             print(data)
-            for client in self.factory.clients:
-                print(client.__dict__)
 
     def startJob(self, func, args=()):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
@@ -210,6 +243,7 @@ class CortexServerFactory(Factory):
     lastCounter = 0
     dataBuffer = []
     ipMap = []
+    response_mode = None
 
     def buildProtocol(self, addr):
         return CortexServer(factory=CortexServerFactory)
@@ -219,10 +253,6 @@ class CortexServerFactory(Factory):
         self.results = sorted(self.results, key=lambda k: k["ARGS_COUNTER"])
         for result in self.results:
             final_results.append(result["RESULT"])
-        """self.func = None
-        self.args = None
-        self.args_counter = 0
-        self.results = []"""
         return final_results
 
 
@@ -231,6 +261,7 @@ def runCortexServer():
     port = int(getenv("PORT"))
     endpoint = TCP4ServerEndpoint(reactor, port)
     endpoint.listen(CortexServerFactory())
+    print(f"ALERT: cortex_server initiated on HOST {getenv('HOST')} at PORT {port}")
     reactor.run()
 
 
