@@ -1,22 +1,20 @@
-# A special cortex client that can send commands to the cortex_server.
 #!/usr/bin/env python3
 
 import socket
 import cloudpickle
-from os import getenv
 from sys import stderr
 import sqlite3
 import json
 
 from dotenv import load_dotenv
 import yaml
+from os import getenv
 
 from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
-from sys import stdout
 
 
 class Cortex(Protocol):
@@ -51,7 +49,7 @@ class Cortex(Protocol):
 
         elif "AUTHENTICATED" in data:
             if data["AUTHENTICATED"] is True:
-                stdout.write("ALERT: Authentication successful!\n")
+                print("ALERT: Authentication successful!\n")
                 self.command_interface()
             else:
                 stderr.write("WARNING: Authentication failed.")

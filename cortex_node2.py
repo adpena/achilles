@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 
 import socket
-import asyncio
-import time
-import random
 import cloudpickle
 from os import getenv
-from sys import exit
 
-from multiprocessing import Pool, Process, Queue
-from concurrent.futures import ProcessPoolExecutor
-
+from multiprocessing import Pool
 from dotenv import load_dotenv
 
 from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
-from twisted.internet import reactor, defer
+from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
 

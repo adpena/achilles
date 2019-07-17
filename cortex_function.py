@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from requests import get
 from html2text import html2text
 

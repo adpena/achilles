@@ -3,7 +3,6 @@ import cloudpickle
 from sys import stderr
 from os import getenv
 from dotenv import load_dotenv
-import time
 
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet import reactor
