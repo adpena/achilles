@@ -215,7 +215,9 @@ class Cortex(Protocol):
         elif command == "kill_cluster":
             pass
         elif command == "help":
-            pass
+            print("\n-------\nCommands:")
+            print("cortex_compute, cluster_status, kill_cluster, help\n-------\n")
+            self.command_interface()
         else:
             print(
                 "Sorry, that command is not recognized. Type 'help' for a list of commands."

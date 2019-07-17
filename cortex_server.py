@@ -3,7 +3,6 @@ import cloudpickle
 from sys import stderr, stdout, path
 from os import getenv
 from dotenv import load_dotenv
-import sqlite3
 
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet import reactor
@@ -112,7 +111,6 @@ class CortexServer(Protocol):
                         }
                     )
                     worker.transport.write(packet)
-                    worker.READY = False
                     print(
                         f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}"
                     )
@@ -201,6 +199,12 @@ class CortexServer(Protocol):
     def startJob(self, func, args=()):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
+
+        # Flush settings in case another job has already been completed in this lifecycle.
+        self.factory.args_counter = 0
+        self.factory.results = []
+
+
         print("MAP FUNC:", func)
         print("MAP ARGS:", args)
         ip_list = []
@@ -236,12 +240,10 @@ class CortexServerFactory(Factory):
     clients = []
     workers = []
     cortex = None
-    func = None
     args = None
     args_counter = 0
     results = []
     lastCounter = 0
-    dataBuffer = []
     ipMap = []
     response_mode = None
 
