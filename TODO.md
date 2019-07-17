@@ -2,8 +2,6 @@ Make it so that arguments are streamed from cortex by default and not fed in one
 
 Replace TCP server with Twisted LineReceiver
 
-Finish file creation before exiting process - connect in cluster
-
 ---
 
 Encryption
