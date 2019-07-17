@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 import yaml
 from os import getenv
 
-from twisted.internet.protocol import Protocol
+from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
 
 
-class Cortex(Protocol):
+class Cortex(LineReceiver):
     def __init__(self):
         load_dotenv()
 
@@ -31,7 +31,7 @@ class Cortex(Protocol):
         self.args_count = 0
         self.abs_counter = 0
 
-    def dataReceived(self, data):
+    def lineReceived(self, data):
         data = cloudpickle.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]
@@ -45,7 +45,7 @@ class Cortex(Protocol):
                     "SECRET_KEY": self.SECRET_KEY,
                 }
             )
-            self.transport.write(packet)
+            self.sendLine(packet)
 
         elif "AUTHENTICATED" in data:
             if data["AUTHENTICATED"] is True:
@@ -61,7 +61,7 @@ class Cortex(Protocol):
                 print(
                     "PROCEEDING WITH DISTRIBUTING ARGUMENTS AMONGST THE CONNECTED NODES..."
                 )
-                self.transport.write(cloudpickle.dumps({"VERIFY": True}))
+                self.sendLine(cloudpickle.dumps({"VERIFY": True}))
             else:
                 stderr.write("ALERT: Job cancelled.")
                 self.command_interface()
@@ -201,11 +201,11 @@ class Cortex(Protocol):
                 "RESPONSE_MODE": response_mode,
             }
         )
-        self.transport.write(packet)
+        self.sendLine(packet)
 
     def get_cluster_status(self):
         packet = cloudpickle.dumps({"GET_CLUSTER_STATUS": "GET_CLUSTER_STATUS"})
-        self.transport.write(packet)
+        self.sendLine(packet)
         print("ALERT: Requested cluster status.")
 
     def kill_cluster(self):
@@ -214,7 +214,7 @@ class Cortex(Protocol):
         )
         if confirm_kill_cluster == "YES":
             packet = cloudpickle.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
-            self.transport.write(packet)
+            self.sendLine(packet)
         else:
             stderr.write("ALERT: kill_cluster aborted.")
             self.command_interface()

@@ -4,12 +4,13 @@ from sys import stderr
 from os import getenv
 from dotenv import load_dotenv
 
-from twisted.internet.protocol import Protocol, Factory
+from twisted.internet.protocol import Factory
+from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.endpoints import TCP4ServerEndpoint
 
 
-class CortexServer(Protocol):
+class CortexServer(LineReceiver):
     def __init__(self, factory):
         self.factory = factory
         print("Starting factory:", self.factory)
@@ -39,7 +40,7 @@ class CortexServer(Protocol):
                 "CLIENT_ID": self.CLIENT_ID,
             }
         )
-        self.transport.write(packet)
+        self.sendLine(packet)
 
     def connectionLost(self, reason):
         self.factory.numProtocols = self.factory.numProtocols - 1
@@ -47,7 +48,7 @@ class CortexServer(Protocol):
         print(f"{self.factory.numProtocols} clients connected.")
         self.factory.clients.remove(self)
 
-    def dataReceived(self, data):
+    def lineReceived(self, data):
         data = cloudpickle.loads(data)
         print("RECEIVED:", data)
         if "USERNAME" in data and "SECRET_KEY" in data:
@@ -60,7 +61,7 @@ class CortexServer(Protocol):
                 self.IP = data["IP"]
                 self.CPU_COUNT = data["CPU_COUNT"]
                 self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
-                self.transport.write(
+                self.sendLine(
                     cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
                 )
                 print(f"User {data['USERNAME']} is authenticated.")
@@ -69,7 +70,7 @@ class CortexServer(Protocol):
                 # for client in self.factory.clients:
                 # print(client.__dict__)
             else:
-                self.transport.write(
+                self.sendLine(
                     cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
                 )
                 stderr.write(
@@ -111,7 +112,7 @@ class CortexServer(Protocol):
                             "ARGS_COUNTER": self.factory.args_counter,
                         }
                     )
-                    worker.transport.write(packet)
+                    worker.sendLine(packet)
                     print(
                         f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}"
                     )
@@ -131,7 +132,7 @@ class CortexServer(Protocol):
                             "ARGS_COUNTER": self.factory.args_counter,
                         }
                     )
-                    self.transport.write(packet)
+                    self.sendLine(packet)
                     print(
                         f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
                     )
@@ -140,7 +141,7 @@ class CortexServer(Protocol):
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
                         if self.factory.lastCounter == 1:
-                            self.factory.cortex.transport.write(
+                            self.factory.cortex.sendLine(
                                 cloudpickle.dumps(
                                     {
                                         "FINAL_RESULT": self.factory.gatherResults(
@@ -153,7 +154,7 @@ class CortexServer(Protocol):
                         else:
                             self.factory.lastCounter = self.factory.lastCounter - 1
                     elif len(self.factory.workers) == 1:
-                        self.factory.cortex.transport.write(
+                        self.factory.cortex.sendLine(
                             cloudpickle.dumps(
                                 {
                                     "FINAL_RESULT": self.factory.gatherResults(
@@ -166,7 +167,7 @@ class CortexServer(Protocol):
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
-                self.factory.cortex.transport.write(cloudpickle.dumps(data))
+                self.factory.cortex.sendLine(cloudpickle.dumps(data))
                 try:
                     packet = cloudpickle.dumps(
                         {
@@ -174,7 +175,7 @@ class CortexServer(Protocol):
                             "ARGS_COUNTER": self.factory.args_counter,
                         }
                     )
-                    self.transport.write(packet)
+                    self.sendLine(packet)
                     print(
                         f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
                     )
@@ -210,11 +211,11 @@ class CortexServer(Protocol):
                     client.AUTHENTICATED
                 )
 
-            self.factory.cortex.transport.write(cloudpickle.dumps(packet))
+            self.factory.cortex.sendLine(cloudpickle.dumps(packet))
 
         elif "KILL_CLUSTER" in data:
             for client in self.factory.clients:
-                client.transport.write(cloudpickle.dumps({"KILL_NODE": "KILL_NODE"}))
+                client.sendLine(cloudpickle.dumps({"KILL_NODE": "KILL_NODE"}))
 
             for client in self.factory.clients:
                 client.transport.loseConnection()
@@ -256,8 +257,8 @@ class CortexServer(Protocol):
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
         for client in self.factory.workers:
-            client.transport.write(cloudpickle.dumps({"START_JOB": True, "FUNC": func}))
-        self.factory.cortex.transport.write(cloudpickle.dumps({"PROCEED": True}))
+            client.sendLine(cloudpickle.dumps({"START_JOB": True, "FUNC": func}))
+        self.factory.cortex.sendLine(cloudpickle.dumps({"PROCEED": True}))
 
 
 class CortexServerFactory(Factory):
