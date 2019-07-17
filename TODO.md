@@ -7,5 +7,3 @@ Replace TCP server with Twisted LineReceiver
 Encryption
 
 Zip/compression
-
-Cython/Rust

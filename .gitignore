@@ -8,6 +8,7 @@ __pycache__/
 *.so
 *.c
 *.pyd
+Cython_implementation/
 
 # Distribution / packaging
 .Python
