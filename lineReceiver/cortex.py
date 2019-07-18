@@ -170,44 +170,32 @@ class Cortex(LineReceiver):
         self,
         cortex_config_path="",
         args=(),
+        dep_funcs=(),
+        modules=(),
         callback=None,
         callback_args=(),
         group="default",
         response_mode="",
     ):
-        from cortex_function import cortex_function, cortex_args
-
         cortex_config_path = cortex_config_path
         with open(cortex_config_path, "r") as f:
             cortex_config = yaml.load(f, Loader=yaml.Loader)
-        try:
-            args_path = cortex_config["ARGS_PATH"]
-        except KeyError:
-            args_path = None
-        try:
-            cortex_args = cortex_config['ARGS']
-        except KeyError:
-            cortex_args = cortex_args
-        self.args_count = 0
-        try:
-            for arg in cortex_args(args_path):
-                self.args_count = self.args_count + 1
-        except TypeError:
-            for arg in cortex_args:
-                self.args_count = self.args_count + 1
-        print("ARGS COUNT:", self.args_count)
+
+        args = cortex_config["ARGS"]
+        self.args_count = len(args)
         self.response_mode = response_mode
+        dep_funcs = cortex_config["DEP_FUNCS"]
         modules = cortex_config["MODULES"]
         callback = cortex_config["CALLBACK"]
         callback_args = cortex_config["CALLBACK_ARGS"]
         group = cortex_config["GROUP"]
+        from cortex_function import cortex_function
 
         packet = cloudpickle.dumps(
             {
                 "FUNC": cortex_function,
-                "ARGS": cortex_args,
-                "ARGS_PATH": args_path,
-                "ARGS_COUNT": self.args_count,
+                "ARGS": args,
+                "DEP_FUNCS": dep_funcs,
                 "MODULES": modules,
                 "CALLBACK": callback,
                 "CALLBACK_ARGS": callback_args,
@@ -236,7 +224,15 @@ class Cortex(LineReceiver):
     def command_interface(self):
         command = input("Cortex cluster is ready to accept commands:\t")
         if command == "cortex_compute":
-            self.init_cortex_compute()
+            cortex_config_path = input(
+                "Enter path to cortex_config.yaml to begin job:\t"
+            )
+            response_mode = input(
+                f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
+            )
+            self.cortex_compute(
+                cortex_config_path=cortex_config_path, response_mode=response_mode
+            )
         elif command == "cluster_status":
             self.get_cluster_status()
         elif command == "kill_cluster":
@@ -246,27 +242,10 @@ class Cortex(LineReceiver):
             print("cortex_compute, cluster_status, kill_cluster, help\n-------\n")
             self.command_interface()
         else:
-            stderr.write(
-                "Sorry, that command is not recognized. Type 'help' for a list of commands.\n"
+            print(
+                "Sorry, that command is not recognized. Type 'help' for a list of commands."
             )
             self.command_interface()
-
-    def init_cortex_compute(self):
-        cortex_config_path = input(
-            "Enter path to cortex_config.yaml to begin job:\t"
-        )
-        response_mode = input(
-            f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
-        )
-        if response_mode in ['OBJECT', "SQLITE", "STREAM"]:
-            self.cortex_compute(
-                cortex_config_path=cortex_config_path, response_mode=response_mode
-            )
-        else:
-            stderr.write(
-                "Sorry, that response mode is not recognized. Please choose OBJECT, SQLITE or STREAM.\n"
-            )
-            self.init_cortex_compute()
 
 
 def runCortex():

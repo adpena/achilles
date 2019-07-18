@@ -7,14 +7,16 @@ from os import getenv
 from multiprocessing import Pool
 from dotenv import load_dotenv
 
-from twisted.internet.protocol import Protocol
+from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
 
 
-class CortexNode(Protocol):
+class CortexNode(LineReceiver):
+    MAX_LENGTH = 999999
+
     def __init__(self):
         load_dotenv()
 
@@ -27,7 +29,7 @@ class CortexNode(Protocol):
         self.func = None
         self.args = []
 
-    def dataReceived(self, data):
+    def lineReceived(self, data):
         self.handleData(data)
 
     def handleData(self, data):
@@ -46,24 +48,25 @@ class CortexNode(Protocol):
                     "CLIENT_ID": self.client_id,
                 }
             )
-            self.transport.write(packet)
+            self.sendLine(packet)
         elif "START_JOB" in data:
             func = data["FUNC"]
             self.func = func
             packet = cloudpickle.dumps({"CLIENT_ID": self.client_id, "READY": True})
             print("START_JOB RESPONSE:", packet)
-            self.transport.write(packet)
+            self.sendLine(packet)
         elif "ARG" in data:
             print("ARG:", data["ARG"])
             with Pool(multiprocessing.cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
+                p.close()
             packet = cloudpickle.dumps(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}
             )
             print("RESPONSE PACKET:", packet)
-            self.transport.write(packet)
+            self.sendLine(packet)
         elif "KILL_NODE" in data:
-            self.transport.write(
+            self.sendLine(
                 cloudpickle.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"})
             )
             self.transport.loseConnection()

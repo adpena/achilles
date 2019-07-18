@@ -3,7 +3,6 @@ import cloudpickle
 from sys import stderr
 from os import getenv
 from dotenv import load_dotenv
-from types import GeneratorType
 
 from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
@@ -94,8 +93,7 @@ class CortexServer(LineReceiver):
         elif self.AUTHENTICATED is True and "FUNC" in data:
             func = data["FUNC"]
             args = data["ARGS"]
-            args_path = data['ARGS_PATH']
-            args_count = data['ARGS_COUNT']
+            dep_funcs = data["DEP_FUNCS"]
             modules = data["MODULES"]
             callback = data["CALLBACK"]
             callback_args = data["CALLBACK_ARGS"]
@@ -103,47 +101,48 @@ class CortexServer(LineReceiver):
             response_mode = data["RESPONSE_MODE"]
             self.factory.response_mode = response_mode
 
-            self.startJob(func, args, args_path, args_count)
+            self.startJob(func, args)
         elif self.AUTHENTICATED is False and "READY" in data:
             print(f"CLIENT STATUS: {data}")
 
         elif self.AUTHENTICATED is True and "VERIFY" in data:
-            self.proceedWithJob()
+            for worker in self.factory.workers:
+                try:
+                    packet = cloudpickle.dumps(
+                        {
+                            "ARG": next(self.factory.args),
+                            "ARGS_COUNTER": self.factory.args_counter,
+                        }
+                    )
+                    worker.sendLine(packet)
+                    print(
+                        f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}"
+                    )
+                    self.factory.args_counter = self.factory.args_counter + 1
+
+                except StopIteration:
+                    print("The arguments iterable was empty.")
 
         elif "RESULT" in data:
             print("RESULTS PACKET:", data)
             if self.factory.response_mode == "OBJECT":
                 self.factory.results.append(data)
                 try:
-                    if isinstance(self.factory.args, GeneratorType):
-                        args_counter, arg = next(self.factory.args)
-                        packet = cloudpickle.dumps(
-                            {
-                                "ARG": arg,
-                                "ARGS_COUNTER": args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
-                        )
-                    else:
-                        packet = cloudpickle.dumps(
-                            {
-                                "ARG": next(self.factory.args),
-                                "ARGS_COUNTER": self.factory.args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
-                        )
-                        self.factory.args_counter = self.factory.args_counter + 1
-
+                    packet = cloudpickle.dumps(
+                        {
+                            "ARG": next(self.factory.args),
+                            "ARGS_COUNTER": self.factory.args_counter,
+                        }
+                    )
+                    self.sendLine(packet)
+                    print(
+                        f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
+                    )
+                    self.factory.args_counter = self.factory.args_counter + 1
                 except StopIteration:
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
+                        if self.factory.lastCounter == 1:
                             self.factory.cortex.sendLine(
                                 cloudpickle.dumps(
                                     {
@@ -172,35 +171,21 @@ class CortexServer(LineReceiver):
             ):
                 self.factory.cortex.sendLine(cloudpickle.dumps(data))
                 try:
-                    if isinstance(self.factory.args, GeneratorType):
-                        args_counter, arg = next(self.factory.args)
-                        packet = cloudpickle.dumps(
-                            {
-                                "ARG": arg,
-                                "ARGS_COUNTER": args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
-                        )
-                    else:
-                        packet = cloudpickle.dumps(
-                            {
-                                "ARG": next(self.factory.args),
-                                "ARGS_COUNTER": self.factory.args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
-                        )
-                        self.factory.args_counter = self.factory.args_counter + 1
-
+                    packet = cloudpickle.dumps(
+                        {
+                            "ARG": next(self.factory.args),
+                            "ARGS_COUNTER": self.factory.args_counter,
+                        }
+                    )
+                    self.sendLine(packet)
+                    print(
+                        f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
+                    )
+                    self.factory.args_counter = self.factory.args_counter + 1
                 except StopIteration:
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
+                        if self.factory.lastCounter == 1:
                             print(
                                 "Final results packet has been transmitted to the cortex."
                             )
@@ -243,14 +228,13 @@ class CortexServer(LineReceiver):
         else:
             print(data)
 
-    def startJob(self, func, args=(), args_path='', args_count=0):
+    def startJob(self, func, args=()):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
 
         # Flush settings in case another job has already been completed in this lifecycle.
-        self.factory.args_path = ''
-        self.factory.results = []
         self.factory.args_counter = 0
+        self.factory.results = []
 
         print("MAP FUNC:", func)
         print("MAP ARGS:", args)
@@ -258,12 +242,7 @@ class CortexServer(LineReceiver):
         ip_map = []
         workers_list = []
         cpu_total = 0
-        try:
-            self.factory.args = args(args_path)
-        except TypeError:
-            self.factory.args = iter(args)
-        print(self.factory.args)
-        print(type(self.factory.args))
+        self.factory.args = iter(args)
         for client in self.factory.clients:
             if client.IP not in ip_list:
                 ip_list.append(client.IP)
@@ -283,37 +262,6 @@ class CortexServer(LineReceiver):
             client.sendLine(cloudpickle.dumps({"START_JOB": True, "FUNC": func}))
         self.factory.cortex.sendLine(cloudpickle.dumps({"PROCEED": True}))
 
-    def proceedWithJob(self):
-        for worker in self.factory.workers:
-            try:
-                if isinstance(self.factory.args, GeneratorType):
-                    print(type(self.factory.args))
-                    args_counter, arg = next(self.factory.args)
-                    packet = cloudpickle.dumps(
-                        {
-                            "ARG": arg,
-                            "ARGS_COUNTER": args_counter,
-                        }
-                    )
-                    worker.sendLine(packet)
-                    print(
-                        f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}"
-                    )
-                else:
-                    packet = cloudpickle.dumps(
-                        {
-                            "ARG": next(self.factory.args),
-                            "ARGS_COUNTER": self.factory.args_counter,
-                        }
-                    )
-                    worker.sendLine(packet)
-                    print(
-                        f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}"
-                    )
-                    self.factory.args_counter = self.factory.args_counter + 1
-            except StopIteration:
-                print("The arguments iterable was empty.")
-
 
 class CortexServerFactory(Factory):
 
@@ -324,8 +272,6 @@ class CortexServerFactory(Factory):
     workers = []
     cortex = None
     args = None
-    args_path = ''
-    args_count = 0
     args_counter = 0
     results = []
     lastCounter = 0

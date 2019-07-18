@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 
-import ast
-
 from requests import get
 from html2text import html2text
-
-
-def cortex_args(args_path):
-    args_counter = -1
-    with open(args_path, 'r') as args:
-        for arg in args:
-            args_counter = args_counter + 1
-            yield args_counter, ast.literal_eval(arg)
 
 
 def cortex_function(arg):

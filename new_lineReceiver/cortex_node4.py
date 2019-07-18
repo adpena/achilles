@@ -15,6 +15,8 @@ from datetime import datetime
 
 
 class CortexNode(LineReceiver):
+    MAX_LENGTH = 999999
+
     def __init__(self):
         load_dotenv()
 
@@ -57,6 +59,7 @@ class CortexNode(LineReceiver):
             print("ARG:", data["ARG"])
             with Pool(multiprocessing.cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
+                p.close()
             packet = cloudpickle.dumps(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}
             )
