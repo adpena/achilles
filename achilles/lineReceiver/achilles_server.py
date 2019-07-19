@@ -361,7 +361,7 @@ def genConfig():
     port = input("Enter HOST port to listen on:\t")
     username = input("Enter USERNAME to require for authentication:\t")
     secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
-    with open(path + ".env", "w") as config_file:
+    with open(path + ".env", "w+") as config_file:
         config_file.writelines(f"EXPORT HOST='{host}'\n")
         config_file.writelines(f"EXPORT PORT={port}\n")
         config_file.writelines(f"EXPORT USERNAME='{username}'\n")
