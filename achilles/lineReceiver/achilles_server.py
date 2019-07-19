@@ -355,7 +355,7 @@ def runAchillesServer():
 def genConfig():
     import achilles
 
-    path = dirname(achilles.__file__) + "\\achilles\\lineReceiver\\"
+    path = dirname(achilles.__file__) + "\\lineReceiver\\"
     print(path)
     host = input("Enter HOST IP address:\t")
     port = input("Enter HOST port to listen on:\t")
