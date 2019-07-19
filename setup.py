@@ -11,7 +11,7 @@ setuptools.setup(
     description="Distributed computing for everyone in modern Python.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/adpena/achilles ",
+    url="https://github.com/adpena/achilles",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
