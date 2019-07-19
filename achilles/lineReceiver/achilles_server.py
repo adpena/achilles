@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import getpass
 from sys import stderr
 from os import getenv
-from os.path import dirname
+from os.path import dirname, abspath, join
 from types import GeneratorType
 
 from twisted.internet.protocol import Factory
@@ -323,8 +323,8 @@ class AchillesServerFactory(Factory):
     PORT = 0
 
     def __init__(self, host, port):
-        HOST = host
-        PORT = port
+        self.HOST = host
+        self.PORT = port
 
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)
@@ -339,11 +339,19 @@ class AchillesServerFactory(Factory):
 
 def runAchillesServer():
     try:
-        load_dotenv()
+        import achilles
+
+        if __name__ != "__main__":
+            dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
+        else:
+            basedir = abspath(dirname(__file__))
+            dotenv_path = join(basedir, ".env")
+        load_dotenv(dotenv_path, override=True)
         port = int(getenv("PORT"))
         host = getenv("HOST")
 
-    except TypeError:
+    except BaseException as e:
+        print("EXCEPTION:", e)
         host, port = genConfig()
 
     endpoint = TCP4ServerEndpoint(reactor, port)
@@ -356,21 +364,20 @@ def genConfig():
     import achilles
 
     path = dirname(achilles.__file__) + "\\lineReceiver\\"
-    print(path)
     host = input("Enter HOST IP address:\t")
-    port = input("Enter HOST port to listen on:\t")
+    port = int(input("Enter HOST port to listen on:\t"))
     username = input("Enter USERNAME to require for authentication:\t")
     secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
-    with open(path + ".env", "w+") as config_file:
-        config_file.writelines(f"EXPORT HOST='{host}'\n")
-        config_file.writelines(f"EXPORT PORT={port}\n")
-        config_file.writelines(f"EXPORT USERNAME='{username}'\n")
-        config_file.writelines(f"EXPORT SECRET_KEY='{secret_key}'\n")
+    with open(path + ".env", "w") as config_file:
+        config_file.writelines(f"HOST={host}\n")
+        config_file.writelines(f"PORT={port}\n")
+        config_file.writelines(f"USERNAME='{username}'\n")
+        config_file.writelines(f"SECRET_KEY='{secret_key}'\n")
         config_file.close()
         print(
-            "Successfully generated .env configuration file. Use genConfig() to overwrite."
+            f"Successfully generated .env configuration file at {path}.env. Use genConfig() to overwrite."
         )
-    return host, int(port)
+    return host, port
 
 
 if __name__ == "__main__":
