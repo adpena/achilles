@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import cloudpickle
+from dotenv import load_dotenv
+
+import getpass
 from sys import stderr
 from os import getenv
-from dotenv import load_dotenv
 from types import GeneratorType
 
 from twisted.internet.protocol import Factory
@@ -17,12 +19,8 @@ class AchillesServer(LineReceiver):
     def __init__(self, factory):
         self.factory = factory
         print("Starting factory:", self.factory)
-        self.HOST = getenv(
-            "HOST"
-        )  # The server's hostname or IP address - standard loopback interface address (localhost)
-        self.PORT = int(
-            getenv("PORT")
-        )  # Port to listen on (non-privileged ports are > 1023)
+        self.HOST = self.factory.HOST  # The server's hostname or IP address - standard loopback interface address (localhost)
+        self.PORT = self.factory.PORT  # Port to listen on (non-privileged ports are > 1023)
         self.USERNAME = getenv("USERNAME")
         self.SECRET_KEY = getenv("SECRET_KEY")
         self.CPU_COUNT = 0
@@ -316,6 +314,12 @@ class AchillesServerFactory(Factory):
     lastCounter = 0
     ipMap = []
     response_mode = None
+    HOST = ''
+    PORT = 0
+
+    def __init__(self, host, port):
+        HOST = host
+        PORT = port
 
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)
@@ -329,12 +333,33 @@ class AchillesServerFactory(Factory):
 
 
 def runAchillesServer():
-    load_dotenv()
-    port = int(getenv("PORT"))
+    try:
+        load_dotenv()
+        port = int(getenv("PORT"))
+        host = getenv("HOST")
+
+    except TypeError:
+        host, port = genConfig()
+
     endpoint = TCP4ServerEndpoint(reactor, port)
-    endpoint.listen(AchillesServerFactory())
-    print(f"ALERT: achilles_server initiated on HOST {getenv('HOST')} at PORT {port}")
+    endpoint.listen(AchillesServerFactory(host, port))
+    print(f"ALERT: achilles_server initiated on HOST {host} at PORT {port}")
     reactor.run()
+
+
+def genConfig():
+    with open('achilles/lineReceiver/.env', 'w') as config_file:
+        host = input("Enter HOST IP address:\t")
+        port = input("Enter HOST port to listen on:\t")
+        username = input("Enter USERNAME to require for authentication:\t")
+        secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
+        config_file.writelines(f"EXPORT HOST='{host}'\n")
+        config_file.writelines(f"EXPORT PORT={port}\n")
+        config_file.writelines(f"EXPORT USERNAME='{username}'\n")
+        config_file.writelines(f"EXPORT SECRET_KEY='{secret_key}'\n")
+        config_file.close()
+        print("Successfully generated .env configuration file. Use genConfig() to overwrite.")
+        return host, int(port)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ Consists of:
      * Available commands in `achilles_controller` command interface:
         * `achilles_compute`, `cluster_status`, `kill_cluster`, `help`
  
- Configuration files:
+Configuration files:
  * `achilles_config.yaml`
      * Use `pyYaml` to load the configuration file for a job into `achilles_controller.py`. See below for additional information on how to structure this file.
  * `achilles_function.py`
@@ -33,4 +33,13 @@ Consists of:
      * Use `python-dotenv` to load the local file into the system's environmental variables for configuration and authentication.
      * Basic security precaution. To-do: explore encryption.
  
-`achilles   ` is in active development and your suggestions are kindly welcomed. `achilles` is written and maintained by Alejandro Peña. Email me at adpena<3gmail.com.
+### Installation
+`pip install achilles`
+
+### Usage
+Deploy `achilles` server:
+1) `from achilles.lineReceiver.achilles_server import genConfig, runAchillesServer`
+2) `genConfig()` -> enter preferred settings or use default
+3) `runAchillesServer()` -> run an `achilles_server` using the specified HOST and PORT in the generated `.env` file                                     
+
+`achilles` is in the early stages of active development and your suggestions/contributions are kindly welcomed. `achilles` is written and maintained by Alejandro Peña. Email me at adpena<3gmail.com.

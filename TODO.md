@@ -4,6 +4,8 @@ Improve documentation w/ installation instructions, how to use, etc.
 
 Ability for multiple achilles_controllers to connect to the achilles_server and run multiple jobs at the same time.
 
+Add unit tests
+
 ---
 
 Encryption/authentication/security concerns
