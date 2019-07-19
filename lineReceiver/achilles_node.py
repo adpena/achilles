@@ -14,7 +14,7 @@ import multiprocessing
 from datetime import datetime
 
 
-class CortexNode(LineReceiver):
+class AchillesNode(LineReceiver):
     MAX_LENGTH = 999999
 
     def __init__(self):
@@ -73,13 +73,13 @@ class CortexNode(LineReceiver):
             reactor.stop()
 
 
-def runCortexNode():
+def runAchillesNode():
     load_dotenv()
     endpoint = TCP4ClientEndpoint(reactor, getenv("HOST"), int(getenv("PORT")))
-    d = connectProtocol(endpoint, CortexNode())
+    d = connectProtocol(endpoint, AchillesNode())
 
     reactor.run()
 
 
 if __name__ == "__main__":
-    runCortexNode()
+    runAchillesNode()

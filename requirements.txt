@@ -4,6 +4,6 @@ twisted
 pypiwin32
 pyyaml
 
-# List packages required by cortex_function.py below.
+# List packages required by achilles_function.py below.
 html2text
 requests

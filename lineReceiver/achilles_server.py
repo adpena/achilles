@@ -11,7 +11,7 @@ from twisted.internet import reactor
 from twisted.internet.endpoints import TCP4ServerEndpoint
 
 
-class CortexServer(LineReceiver):
+class AchillesServer(LineReceiver):
     MAX_LENGTH = 999999
 
     def __init__(self, factory):
@@ -68,7 +68,7 @@ class CortexServer(LineReceiver):
                     cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
                 )
                 print(f"User {data['USERNAME']} is authenticated.")
-                self.factory.cortex = self
+                self.factory.achilles_controller = self
 
                 # for client in self.factory.clients:
                 # print(client.__dict__)
@@ -144,7 +144,7 @@ class CortexServer(LineReceiver):
                     print("The arguments have been exhausted.")
                     if len(self.factory.workers) > 1:
                         if self.factory.lastCounter == 0:
-                            self.factory.cortex.sendLine(
+                            self.factory.achilles_controller.sendLine(
                                 cloudpickle.dumps(
                                     {
                                         "FINAL_RESULT": self.factory.gatherResults(
@@ -157,7 +157,7 @@ class CortexServer(LineReceiver):
                         else:
                             self.factory.lastCounter = self.factory.lastCounter - 1
                     elif len(self.factory.workers) == 1:
-                        self.factory.cortex.sendLine(
+                        self.factory.achilles_controller.sendLine(
                             cloudpickle.dumps(
                                 {
                                     "FINAL_RESULT": self.factory.gatherResults(
@@ -170,7 +170,7 @@ class CortexServer(LineReceiver):
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
-                self.factory.cortex.sendLine(cloudpickle.dumps(data))
+                self.factory.achilles_controller.sendLine(cloudpickle.dumps(data))
                 try:
                     if isinstance(self.factory.args, GeneratorType):
                         args_counter, arg = next(self.factory.args)
@@ -202,14 +202,14 @@ class CortexServer(LineReceiver):
                     if len(self.factory.workers) > 1:
                         if self.factory.lastCounter == 0:
                             print(
-                                "Final results packet has been transmitted to the cortex."
+                                "Final results packet has been transmitted to the achilles_controller."
                             )
 
                         else:
                             self.factory.lastCounter = self.factory.lastCounter - 1
                     elif len(self.factory.workers) == 1:
                         print(
-                            "Final results packet has been transmitted to the cortex."
+                            "Final results packet has been transmitted to the achilles_controller."
                         )
 
         elif "GET_CLUSTER_STATUS" in data:
@@ -228,7 +228,7 @@ class CortexServer(LineReceiver):
                     client.AUTHENTICATED
                 )
 
-            self.factory.cortex.sendLine(cloudpickle.dumps(packet))
+            self.factory.achilles_controller.sendLine(cloudpickle.dumps(packet))
 
         elif "KILL_CLUSTER" in data:
             for client in self.factory.clients:
@@ -281,7 +281,7 @@ class CortexServer(LineReceiver):
         self.factory.lastCounter = len(self.factory.workers) - 1
         for client in self.factory.workers:
             client.sendLine(cloudpickle.dumps({"START_JOB": True, "FUNC": func}))
-        self.factory.cortex.sendLine(cloudpickle.dumps({"PROCEED": True}))
+        self.factory.achilles_controller.sendLine(cloudpickle.dumps({"PROCEED": True}))
 
     def proceedWithJob(self):
         for worker in self.factory.workers:
@@ -315,14 +315,14 @@ class CortexServer(LineReceiver):
                 print("The arguments iterable was empty.")
 
 
-class CortexServerFactory(Factory):
+class AchillesServerFactory(Factory):
 
-    protocol = CortexServer
+    protocol = AchillesServer
     numProtocols = 0
     totalProtocols = 0
     clients = []
     workers = []
-    cortex = None
+    achilles_controller = None
     args = None
     args_path = ''
     args_count = 0
@@ -333,7 +333,7 @@ class CortexServerFactory(Factory):
     response_mode = None
 
     def buildProtocol(self, addr):
-        return CortexServer(factory=CortexServerFactory)
+        return AchillesServer(factory=AchillesServerFactory)
 
     def gatherResults(self):
         final_results = []
@@ -343,14 +343,14 @@ class CortexServerFactory(Factory):
         return final_results
 
 
-def runCortexServer():
+def runAchillesServer():
     load_dotenv()
     port = int(getenv("PORT"))
     endpoint = TCP4ServerEndpoint(reactor, port)
-    endpoint.listen(CortexServerFactory())
-    print(f"ALERT: cortex_server initiated on HOST {getenv('HOST')} at PORT {port}")
+    endpoint.listen(AchillesServerFactory())
+    print(f"ALERT: achilles_server initiated on HOST {getenv('HOST')} at PORT {port}")
     reactor.run()
 
 
 if __name__ == "__main__":
-    runCortexServer()
+    runAchillesServer()

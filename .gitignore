@@ -1,3 +1,6 @@
+# Archived implementations
+Protocol/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 /__pycache__/
@@ -8,7 +11,7 @@ __pycache__/
 *.so
 *.c
 *.pyd
-Cython_implementation/
+Cython/
 
 # Distribution / packaging
 .Python

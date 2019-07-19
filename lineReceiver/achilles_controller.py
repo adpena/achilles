@@ -17,7 +17,7 @@ import multiprocessing
 from datetime import datetime
 
 
-class Cortex(LineReceiver):
+class AchillesController(LineReceiver):
     MAX_LENGTH = 999999
 
     def __init__(self):
@@ -158,7 +158,7 @@ class Cortex(LineReceiver):
 
         elif "KILL_NODE" in data:
             stderr.write(
-                "ALERT: All cortex_nodes have been disconnected from the cluster. The cortex_server is running and accepting connections."
+                "ALERT: All achilles_nodes have been disconnected from the cluster. The achilles_server is running and accepting connections."
             )
             reactor.stop()
 
@@ -166,46 +166,46 @@ class Cortex(LineReceiver):
             print(data)
             self.command_interface()
 
-    def cortex_compute(
+    def achilles_compute(
         self,
-        cortex_config_path="",
+        achilles_config_path="",
         args=(),
         callback=None,
         callback_args=(),
         group="default",
         response_mode="",
     ):
-        from cortex_function import cortex_function, cortex_args
+        from achilles_function import achilles_function, achilles_args
 
-        cortex_config_path = cortex_config_path
-        with open(cortex_config_path, "r") as f:
-            cortex_config = yaml.load(f, Loader=yaml.Loader)
+        achilles_config_path = achilles_config_path
+        with open(achilles_config_path, "r") as f:
+            achilles_config = yaml.load(f, Loader=yaml.Loader)
         try:
-            args_path = cortex_config["ARGS_PATH"]
+            args_path = achilles_config["ARGS_PATH"]
         except KeyError:
             args_path = None
         try:
-            cortex_args = cortex_config['ARGS']
+            achilles_args = achilles_config['ARGS']
         except KeyError:
-            cortex_args = cortex_args
+            achilles_args = achilles_args
         self.args_count = 0
         try:
-            for arg in cortex_args(args_path):
+            for arg in achilles_args(args_path):
                 self.args_count = self.args_count + 1
         except TypeError:
-            for arg in cortex_args:
+            for arg in achilles_args:
                 self.args_count = self.args_count + 1
         print("ARGS COUNT:", self.args_count)
         self.response_mode = response_mode
-        modules = cortex_config["MODULES"]
-        callback = cortex_config["CALLBACK"]
-        callback_args = cortex_config["CALLBACK_ARGS"]
-        group = cortex_config["GROUP"]
+        modules = achilles_config["MODULES"]
+        callback = achilles_args["CALLBACK"]
+        callback_args = achilles_config["CALLBACK_ARGS"]
+        group = achilles_config["GROUP"]
 
         packet = cloudpickle.dumps(
             {
-                "FUNC": cortex_function,
-                "ARGS": cortex_args,
+                "FUNC": achilles_function,
+                "ARGS": achilles_args,
                 "ARGS_PATH": args_path,
                 "ARGS_COUNT": self.args_count,
                 "MODULES": modules,
@@ -234,16 +234,16 @@ class Cortex(LineReceiver):
             self.command_interface()
 
     def command_interface(self):
-        command = input("Cortex cluster is ready to accept commands:\t")
-        if command == "cortex_compute":
-            self.init_cortex_compute()
+        command = input("Achilles cluster is ready to accept commands:\t")
+        if command == "achilles_compute":
+            self.init_achilles_compute()
         elif command == "cluster_status":
             self.get_cluster_status()
         elif command == "kill_cluster":
             self.kill_cluster()
         elif command == "help":
             print("\n-------\nCommands:")
-            print("cortex_compute, cluster_status, kill_cluster, help\n-------\n")
+            print("achilles_compute, cluster_status, kill_cluster, help\n-------\n")
             self.command_interface()
         else:
             stderr.write(
@@ -251,31 +251,31 @@ class Cortex(LineReceiver):
             )
             self.command_interface()
 
-    def init_cortex_compute(self):
-        cortex_config_path = input(
-            "Enter path to cortex_config.yaml to begin job:\t"
+    def init_achilles_compute(self):
+        achilles_config_path = input(
+            "Enter path to achilles_config.yaml to begin job:\t"
         )
         response_mode = input(
             f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
         )
         if response_mode in ['OBJECT', "SQLITE", "STREAM"]:
-            self.cortex_compute(
-                cortex_config_path=cortex_config_path, response_mode=response_mode
+            self.achilles_compute(
+                achilles_config_path=achilles_config_path, response_mode=response_mode
             )
         else:
             stderr.write(
                 "Sorry, that response mode is not recognized. Please choose OBJECT, SQLITE or STREAM.\n"
             )
-            self.init_cortex_compute()
+            self.init_achilles_compute()
 
 
-def runCortex():
+def runAchillesController():
     load_dotenv()
     endpoint = TCP4ClientEndpoint(reactor, getenv("HOST"), int(getenv("PORT")))
-    d = connectProtocol(endpoint, Cortex())
+    d = connectProtocol(endpoint, AchillesController())
 
     reactor.run()
 
 
 if __name__ == "__main__":
-    runCortex()
+    runAchillesController()
