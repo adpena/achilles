@@ -185,7 +185,7 @@ class AchillesController(LineReceiver):
         except KeyError:
             args_path = None
         try:
-            achilles_args = achilles_config['ARGS']
+            achilles_args = achilles_config["ARGS"]
         except KeyError:
             achilles_args = achilles_args
         self.args_count = 0
@@ -258,7 +258,7 @@ class AchillesController(LineReceiver):
         response_mode = input(
             f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
         )
-        if response_mode in ['OBJECT', "SQLITE", "STREAM"]:
+        if response_mode in ["OBJECT", "SQLITE", "STREAM"]:
             self.achilles_compute(
                 achilles_config_path=achilles_config_path, response_mode=response_mode
             )

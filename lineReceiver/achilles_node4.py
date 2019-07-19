@@ -66,9 +66,7 @@ class AchillesNode(LineReceiver):
             print("RESPONSE PACKET:", packet)
             self.sendLine(packet)
         elif "KILL_NODE" in data:
-            self.sendLine(
-                cloudpickle.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"})
-            )
+            self.sendLine(cloudpickle.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"}))
             self.transport.loseConnection()
             reactor.stop()
 

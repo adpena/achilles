@@ -64,18 +64,14 @@ class AchillesServer(LineReceiver):
                 self.IP = data["IP"]
                 self.CPU_COUNT = data["CPU_COUNT"]
                 self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
-                self.sendLine(
-                    cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
-                )
+                self.sendLine(cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
                 print(f"User {data['USERNAME']} is authenticated.")
                 self.factory.achilles_controller = self
 
                 # for client in self.factory.clients:
                 # print(client.__dict__)
             else:
-                self.sendLine(
-                    cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED})
-                )
+                self.sendLine(cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
                 stderr.write(
                     "This USERNAME and SECRET_KEY cannot be authenticated. Closing connection."
                 )
@@ -94,8 +90,8 @@ class AchillesServer(LineReceiver):
         elif self.AUTHENTICATED is True and "FUNC" in data:
             func = data["FUNC"]
             args = data["ARGS"]
-            args_path = data['ARGS_PATH']
-            args_count = data['ARGS_COUNT']
+            args_path = data["ARGS_PATH"]
+            args_count = data["ARGS_COUNT"]
             modules = data["MODULES"]
             callback = data["CALLBACK"]
             callback_args = data["CALLBACK_ARGS"]
@@ -118,10 +114,7 @@ class AchillesServer(LineReceiver):
                     if isinstance(self.factory.args, GeneratorType):
                         args_counter, arg = next(self.factory.args)
                         packet = cloudpickle.dumps(
-                            {
-                                "ARG": arg,
-                                "ARGS_COUNTER": args_counter,
-                            }
+                            {"ARG": arg, "ARGS_COUNTER": args_counter}
                         )
                         self.sendLine(packet)
                         print(
@@ -175,10 +168,7 @@ class AchillesServer(LineReceiver):
                     if isinstance(self.factory.args, GeneratorType):
                         args_counter, arg = next(self.factory.args)
                         packet = cloudpickle.dumps(
-                            {
-                                "ARG": arg,
-                                "ARGS_COUNTER": args_counter,
-                            }
+                            {"ARG": arg, "ARGS_COUNTER": args_counter}
                         )
                         self.sendLine(packet)
                         print(
@@ -243,12 +233,12 @@ class AchillesServer(LineReceiver):
         else:
             print(data)
 
-    def startJob(self, func, args=(), args_path='', args_count=0):
+    def startJob(self, func, args=(), args_path="", args_count=0):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
 
         # Flush settings in case another job has already been completed in this lifecycle.
-        self.factory.args_path = ''
+        self.factory.args_path = ""
         self.factory.results = []
         self.factory.args_counter = 0
 
@@ -290,15 +280,10 @@ class AchillesServer(LineReceiver):
                     print(type(self.factory.args))
                     args_counter, arg = next(self.factory.args)
                     packet = cloudpickle.dumps(
-                        {
-                            "ARG": arg,
-                            "ARGS_COUNTER": args_counter,
-                        }
+                        {"ARG": arg, "ARGS_COUNTER": args_counter}
                     )
                     worker.sendLine(packet)
-                    print(
-                        f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}"
-                    )
+                    print(f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}")
                 else:
                     packet = cloudpickle.dumps(
                         {
@@ -324,7 +309,7 @@ class AchillesServerFactory(Factory):
     workers = []
     achilles_controller = None
     args = None
-    args_path = ''
+    args_path = ""
     args_count = 0
     args_counter = 0
     results = []

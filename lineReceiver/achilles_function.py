@@ -8,7 +8,7 @@ from html2text import html2text
 
 def achilles_args(args_path):
     args_counter = -1
-    with open(args_path, 'r') as args:
+    with open(args_path, "r") as args:
         for arg in args:
             args_counter = args_counter + 1
             yield args_counter, ast.literal_eval(arg)
