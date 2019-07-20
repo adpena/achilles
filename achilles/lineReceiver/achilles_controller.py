@@ -186,7 +186,7 @@ class AchillesController(LineReceiver):
             path.append(achilles_function_path)
         from achilles_function import achilles_function, achilles_args
 
-        achilles_config_path = achilles_config_path
+        achilles_config_path = achilles_function_path + achilles_config_path
         with open(achilles_config_path, "r") as f:
             achilles_config = yaml.load(f, Loader=yaml.Loader)
         try:
