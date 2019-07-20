@@ -190,7 +190,10 @@ class AchillesController(LineReceiver):
         with open(achilles_config_path, "r") as f:
             achilles_config = yaml.load(f, Loader=yaml.Loader)
         try:
-            args_path = achilles_config["ARGS_PATH"]
+            if __name__ != "__main__":
+                args_path = achilles_function_path + achilles_config["ARGS_PATH"]
+            else:
+                args_path = achilles_config["ARGS_PATH"]
         except KeyError:
             args_path = None
         try:
