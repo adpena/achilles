@@ -2,7 +2,7 @@
 
 import socket
 import cloudpickle
-from sys import stderr
+from sys import stderr, path
 import sqlite3
 import json
 
@@ -176,6 +176,14 @@ class AchillesController(LineReceiver):
         group="default",
         response_mode="",
     ):
+        if __name__ != "__main__":
+            import achilles
+
+            achilles_function_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+            path.append(achilles_function_path)
+        else:
+            achilles_function_path = abspath(dirname(__file__))
+            path.append(achilles_function_path)
         from achilles_function import achilles_function, achilles_args
 
         achilles_config_path = achilles_config_path
@@ -301,7 +309,7 @@ def genConfig():
     if __name__ != "__main__":
         import achilles
 
-        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
     else:
         basedir = abspath(dirname(__file__))
         dotenv_path = join(basedir, ".env")
@@ -309,7 +317,7 @@ def genConfig():
     port = int(input("Enter HOST port to listen on:\t"))
     username = input("Enter USERNAME to require for authentication:\t")
     secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
-    with open(dotenv_path + ".env", "w") as config_file:
+    with open(dotenv_path, "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
         config_file.writelines(f"USERNAME='{username}'\n")

@@ -98,13 +98,13 @@ def genConfig():
     if __name__ != "__main__":
         import achilles
 
-        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
     else:
         basedir = abspath(dirname(__file__))
         dotenv_path = join(basedir, ".env")
     host = input("Enter HOST IP address:\t")
     port = int(input("Enter HOST port to connect to:\t"))
-    with open(dotenv_path + ".env", "w") as config_file:
+    with open(dotenv_path, "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
         config_file.close()
