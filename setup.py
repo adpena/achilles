@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="achilles",
-    version="0.0.166",
+    version="0.0.168",
     author="Alejandro Peña",
     author_email="adpena@gmail.com",
     description="Distributed computing for everyone in modern Python.",
@@ -18,5 +18,6 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    include_package_data=True,
     install_requires=["cloudpickle", "python-dotenv", "twisted", "pypiwin32", "pyyaml"],
 )
