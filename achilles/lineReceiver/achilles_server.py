@@ -346,7 +346,9 @@ def runAchillesServer():
         secret_key = getenv("SECRET_KEY")
 
     except BaseException as e:
-        print(f"No .env configuration file found ({e}). Follow the prompts below to generate one:")
+        print(
+            f"No .env configuration file found ({e}). Follow the prompts below to generate one:"
+        )
         host, port, username, secret_key = genConfig()
 
     endpoint = TCP4ServerEndpoint(reactor, port)
@@ -358,6 +360,7 @@ def runAchillesServer():
 def genConfig():
     if __name__ != "__main__":
         import achilles
+
         dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
     else:
         basedir = abspath(dirname(__file__))

@@ -83,7 +83,9 @@ def runAchillesNode():
         host = getenv("HOST")
 
     except BaseException as e:
-        print(f"No .env configuration file found ({e}). Follow the prompts below to generate one:")
+        print(
+            f"No .env configuration file found ({e}). Follow the prompts below to generate one:"
+        )
         host, port = genConfig()
 
     endpoint = TCP4ClientEndpoint(reactor, host, port)
@@ -95,6 +97,7 @@ def runAchillesNode():
 def genConfig():
     if __name__ != "__main__":
         import achilles
+
         dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
     else:
         basedir = abspath(dirname(__file__))
