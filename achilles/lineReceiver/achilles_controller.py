@@ -167,15 +167,7 @@ class AchillesController(LineReceiver):
             print(data)
             self.command_interface()
 
-    def achilles_compute(
-        self,
-        achilles_config_path="",
-        args=(),
-        callback=None,
-        callback_args=(),
-        group="default",
-        response_mode="",
-    ):
+    def achilles_compute(self, achilles_config_path="", response_mode=""):
         if __name__ != "__main__":
             import achilles
 
@@ -184,16 +176,17 @@ class AchillesController(LineReceiver):
         else:
             achilles_function_path = abspath(dirname(__file__))
             path.append(achilles_function_path)
-        from achilles_function import achilles_function, achilles_args
+        from achilles_function import (
+            achilles_function,
+            achilles_args,
+            achilles_callback,
+        )
 
         achilles_config_path = achilles_function_path + achilles_config_path
         with open(achilles_config_path, "r") as f:
             achilles_config = yaml.load(f, Loader=yaml.Loader)
         try:
-            if __name__ != "__main__":
-                args_path = achilles_function_path + achilles_config["ARGS_PATH"]
-            else:
-                args_path = achilles_config["ARGS_PATH"]
+            args_path = achilles_function_path + achilles_config["ARGS_PATH"]
         except KeyError:
             args_path = None
         try:
@@ -210,8 +203,6 @@ class AchillesController(LineReceiver):
         print("ARGS COUNT:", self.args_count)
         self.response_mode = response_mode
         modules = achilles_config["MODULES"]
-        callback = achilles_args["CALLBACK"]
-        callback_args = achilles_config["CALLBACK_ARGS"]
         group = achilles_config["GROUP"]
 
         packet = cloudpickle.dumps(
@@ -221,8 +212,7 @@ class AchillesController(LineReceiver):
                 "ARGS_PATH": args_path,
                 "ARGS_COUNT": self.args_count,
                 "MODULES": modules,
-                "CALLBACK": callback,
-                "CALLBACK_ARGS": callback_args,
+                "CALLBACK": achilles_callback,
                 "GROUP": group,
                 "RESPONSE_MODE": response_mode,
             }

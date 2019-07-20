@@ -94,12 +94,11 @@ class AchillesServer(LineReceiver):
             args_count = data["ARGS_COUNT"]
             modules = data["MODULES"]
             callback = data["CALLBACK"]
-            callback_args = data["CALLBACK_ARGS"]
             group = data["GROUP"]
             response_mode = data["RESPONSE_MODE"]
             self.factory.response_mode = response_mode
 
-            self.startJob(func, args, args_path, args_count)
+            self.startJob(func, args, args_path, args_count, modules, callback, group)
         elif self.AUTHENTICATED is False and "READY" in data:
             print(f"CLIENT STATUS: {data}")
 
@@ -233,7 +232,16 @@ class AchillesServer(LineReceiver):
         else:
             print(data)
 
-    def startJob(self, func, args=(), args_path="", args_count=0):
+    def startJob(
+        self,
+        func,
+        args=(),
+        args_path="",
+        args_count=0,
+        modules=None,
+        callback=None,
+        group="",
+    ):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
 

@@ -18,6 +18,10 @@ def achilles_function(arg):
     return arg ** 2
 
 
+def achilles_callback(result):
+    pass
+
+
 def achilles_function2(arg):
     r = get(
         arg,
