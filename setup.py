@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="achilles",
-    version="0.0.1693",
+    version="0.0.1694",
     author="Alejandro Peña",
     author_email="adpena@gmail.com",
     description="Distributed computing for everyone in modern Python.",
