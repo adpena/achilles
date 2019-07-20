@@ -3,7 +3,7 @@ import cloudpickle
 from dotenv import load_dotenv
 
 import getpass
-from sys import stderr
+from sys import stderr, path
 from os import getenv
 from os.path import dirname, abspath, join
 from types import GeneratorType
@@ -348,9 +348,16 @@ def runAchillesServer():
             import achilles
 
             dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
+
+            achilles_function_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+            path.append(achilles_function_path)
+
         else:
             basedir = abspath(dirname(__file__))
             dotenv_path = join(basedir, ".env")
+
+            achilles_function_path = abspath(dirname(__file__))
+            path.append(achilles_function_path)
         load_dotenv(dotenv_path, override=True)
         port = int(getenv("PORT"))
         host = getenv("HOST")
