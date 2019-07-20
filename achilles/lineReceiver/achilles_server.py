@@ -312,12 +312,16 @@ class AchillesServerFactory(Factory):
     lastCounter = 0
     ipMap = []
     response_mode = None
+    HOST = ""
+    PORT = 0
+    USERNAME = ""
+    SECRET_KEY = ""
 
     def __init__(self, host, port, username, secret_key):
-        self.HOST = host
-        self.PORT = port
-        self.USERNAME = username
-        self.SECRET_KEY = secret_key
+        AchillesServerFactory.HOST = host
+        AchillesServerFactory.PORT = port
+        AchillesServerFactory.USERNAME = username
+        AchillesServerFactory.SECRET_KEY = secret_key
 
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)
