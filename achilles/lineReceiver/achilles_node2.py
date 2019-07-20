@@ -71,9 +71,9 @@ class AchillesNode(LineReceiver):
 
 def runAchillesNode():
     try:
-        import achilles
-
         if __name__ != "__main__":
+            import achilles
+
             dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
         else:
             basedir = abspath(dirname(__file__))
@@ -83,7 +83,7 @@ def runAchillesNode():
         host = getenv("HOST")
 
     except BaseException as e:
-        print("EXCEPTION", e)
+        print(f"No .env configuration file found ({e}). Follow the prompts below to generate one:")
         host, port = genConfig()
 
     endpoint = TCP4ClientEndpoint(reactor, host, port)
@@ -93,17 +93,20 @@ def runAchillesNode():
 
 
 def genConfig():
-    import achilles
-
-    path = dirname(achilles.__file__) + "\\lineReceiver\\"
+    if __name__ != "__main__":
+        import achilles
+        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+    else:
+        basedir = abspath(dirname(__file__))
+        dotenv_path = join(basedir, ".env")
     host = input("Enter HOST IP address:\t")
-    port = int(input("Enter HOST port to listen on:\t"))
-    with open(path + ".env", "w") as config_file:
+    port = int(input("Enter HOST port to connect to:\t"))
+    with open(dotenv_path + ".env", "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
         config_file.close()
         print(
-            f"Successfully generated .env configuration file at {path}.env. Use genConfig() to overwrite."
+            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_node.genConfig() to overwrite."
         )
     return host, port
 

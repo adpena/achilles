@@ -26,8 +26,6 @@ class AchillesServer(LineReceiver):
         self.PORT = (
             self.factory.PORT
         )  # Port to listen on (non-privileged ports are > 1023)
-        self.USERNAME = getenv("USERNAME")
-        self.SECRET_KEY = getenv("SECRET_KEY")
         self.CPU_COUNT = 0
         self.IP = ""
         self.DATETIME_CONNECTED = ""
@@ -59,8 +57,8 @@ class AchillesServer(LineReceiver):
         print("RECEIVED:", data)
         if "USERNAME" in data and "SECRET_KEY" in data:
             if (
-                data["USERNAME"] == self.USERNAME
-                and data["SECRET_KEY"] == self.SECRET_KEY
+                data["USERNAME"] == self.factory.USERNAME
+                and data["SECRET_KEY"] == self.factory.SECRET_KEY
             ):
                 # The user is authenticated to distribute commands.
                 self.AUTHENTICATED = True
@@ -82,7 +80,6 @@ class AchillesServer(LineReceiver):
                 # for client in self.factory.clients:
                 # print(client.__dict__)
         elif "IP" in data and "CPU_COUNT" in data and self.AUTHENTICATED is False:
-            print(data)
             print("Clients:", self.factory.clients)
             self.IP = data["IP"]
             self.CPU_COUNT = data["CPU_COUNT"]
@@ -255,8 +252,6 @@ class AchillesServer(LineReceiver):
             self.factory.args = args(args_path)
         except TypeError:
             self.factory.args = iter(args)
-        print(self.factory.args)
-        print(type(self.factory.args))
         for client in self.factory.clients:
             if client.IP not in ip_list:
                 ip_list.append(client.IP)
@@ -268,7 +263,6 @@ class AchillesServer(LineReceiver):
         print("IP LIST:", ip_list)
         print("CPU TOTAL", cpu_total)
         print("CLIENTS CONNECTED:", self.factory.numProtocols)
-        print(workers_list)
         self.factory.ipMap = ip_map
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
@@ -280,7 +274,6 @@ class AchillesServer(LineReceiver):
         for worker in self.factory.workers:
             try:
                 if isinstance(self.factory.args, GeneratorType):
-                    print(type(self.factory.args))
                     args_counter, arg = next(self.factory.args)
                     packet = cloudpickle.dumps(
                         {"ARG": arg, "ARGS_COUNTER": args_counter}
@@ -319,12 +312,12 @@ class AchillesServerFactory(Factory):
     lastCounter = 0
     ipMap = []
     response_mode = None
-    HOST = ""
-    PORT = 0
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, username, secret_key):
         self.HOST = host
         self.PORT = port
+        self.USERNAME = username
+        self.SECRET_KEY = secret_key
 
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)
@@ -339,9 +332,9 @@ class AchillesServerFactory(Factory):
 
 def runAchillesServer():
     try:
-        import achilles
-
         if __name__ != "__main__":
+            import achilles
+
             dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
         else:
             basedir = abspath(dirname(__file__))
@@ -349,35 +342,40 @@ def runAchillesServer():
         load_dotenv(dotenv_path, override=True)
         port = int(getenv("PORT"))
         host = getenv("HOST")
+        username = getenv("USERNAME")
+        secret_key = getenv("SECRET_KEY")
 
     except BaseException as e:
-        print("EXCEPTION:", e)
-        host, port = genConfig()
+        print(f"No .env configuration file found ({e}). Follow the prompts below to generate one:")
+        host, port, username, secret_key = genConfig()
 
     endpoint = TCP4ServerEndpoint(reactor, port)
-    endpoint.listen(AchillesServerFactory(host, port))
+    endpoint.listen(AchillesServerFactory(host, port, username, secret_key))
     print(f"ALERT: achilles_server initiated on HOST {host} at PORT {port}")
     reactor.run()
 
 
 def genConfig():
-    import achilles
-
-    path = dirname(achilles.__file__) + "\\lineReceiver\\"
+    if __name__ != "__main__":
+        import achilles
+        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+    else:
+        basedir = abspath(dirname(__file__))
+        dotenv_path = join(basedir, ".env")
     host = input("Enter HOST IP address:\t")
-    port = int(input("Enter HOST port to listen on:\t"))
+    port = int(input("Enter host PORT to listen on:\t"))
     username = input("Enter USERNAME to require for authentication:\t")
     secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
-    with open(path + ".env", "w") as config_file:
+    with open(dotenv_path + ".env", "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
         config_file.writelines(f"USERNAME='{username}'\n")
         config_file.writelines(f"SECRET_KEY='{secret_key}'\n")
         config_file.close()
         print(
-            f"Successfully generated .env configuration file at {path}.env. Use genConfig() to overwrite."
+            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_server.genConfig() to overwrite."
         )
-    return host, port
+    return host, port, username, secret_key
 
 
 if __name__ == "__main__":

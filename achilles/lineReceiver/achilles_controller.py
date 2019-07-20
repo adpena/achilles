@@ -9,6 +9,8 @@ import json
 from dotenv import load_dotenv
 import yaml
 from os import getenv
+from os.path import abspath, dirname, join
+import getpass
 
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
@@ -20,13 +22,12 @@ from datetime import datetime
 class AchillesController(LineReceiver):
     MAX_LENGTH = 999999
 
-    def __init__(self):
-        load_dotenv()
+    def __init__(self, host, port, username, secret_key):
 
-        self.HOST = getenv("HOST")  # The server's hostname or IP address
-        self.PORT = int(getenv("PORT"))  # The port used by the server
-        self.USERNAME = getenv("USERNAME")
-        self.SECRET_KEY = getenv("SECRET_KEY")
+        self.HOST = host  # The server's hostname or IP address
+        self.PORT = port  # The port used by the server
+        self.USERNAME = username
+        self.SECRET_KEY = secret_key
         self.response_mode = None
         self.sqlite_db_created = False
         self.sqlite_db = ""
@@ -270,11 +271,50 @@ class AchillesController(LineReceiver):
 
 
 def runAchillesController():
-    load_dotenv()
-    endpoint = TCP4ClientEndpoint(reactor, getenv("HOST"), int(getenv("PORT")))
-    d = connectProtocol(endpoint, AchillesController())
+    try:
+        if __name__ != "__main__":
+            import achilles
+
+            dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
+        else:
+            basedir = abspath(dirname(__file__))
+            dotenv_path = join(basedir, ".env")
+        load_dotenv(dotenv_path, override=True)
+        port = int(getenv("PORT"))
+        host = getenv("HOST")
+        username = getenv("USERNAME")
+        secret_key = getenv("SECRET_KEY")
+
+    except BaseException as e:
+        print(f"No .env configuration file found ({e}). Follow the prompts below to generate one:")
+        host, port, username, secret_key = genConfig()
+
+    endpoint = TCP4ClientEndpoint(reactor, host, port)
+    d = connectProtocol(endpoint, AchillesController(host, port, username, secret_key))
 
     reactor.run()
+
+def genConfig():
+    if __name__ != "__main__":
+        import achilles
+        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+    else:
+        basedir = abspath(dirname(__file__))
+        dotenv_path = join(basedir, ".env")
+    host = input("Enter HOST IP address:\t")
+    port = int(input("Enter HOST port to listen on:\t"))
+    username = input("Enter USERNAME to require for authentication:\t")
+    secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
+    with open(dotenv_path + ".env", "w") as config_file:
+        config_file.writelines(f"HOST={host}\n")
+        config_file.writelines(f"PORT={port}\n")
+        config_file.writelines(f"USERNAME='{username}'\n")
+        config_file.writelines(f"SECRET_KEY='{secret_key}'\n")
+        config_file.close()
+        print(
+            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_controller.genConfig() to overwrite."
+        )
+    return host, port, username, secret_key
 
 
 if __name__ == "__main__":
