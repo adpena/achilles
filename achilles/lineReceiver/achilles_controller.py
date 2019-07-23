@@ -179,7 +179,7 @@ class AchillesController(LineReceiver):
             achilles_function_path = abspath(dirname(__file__))
             path.append(achilles_function_path)
 
-        from achilles_function import (
+        from achilles.lineReceiver.achilles_function import (
             achilles_function,
             achilles_args,
             achilles_callback,
