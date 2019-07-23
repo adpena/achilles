@@ -171,7 +171,9 @@ class AchillesController(LineReceiver):
         if __name__ != "__main__":
             import achilles
 
-            achilles_function_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
+            achilles_function_path = (
+                abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
+            )
             path.append(achilles_function_path)
         else:
             achilles_function_path = abspath(dirname(__file__))
@@ -276,6 +278,7 @@ def runAchillesController():
     try:
         if __name__ != "__main__":
             import achilles
+
             dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
         else:
             basedir = abspath(dirname(__file__))
@@ -301,6 +304,7 @@ def runAchillesController():
 def genConfig():
     if __name__ != "__main__":
         import achilles
+
         dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
     else:
         basedir = abspath(dirname(__file__))

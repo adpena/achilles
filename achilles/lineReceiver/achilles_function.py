@@ -22,7 +22,7 @@ def achilles_callback(result):
     pass
 
 
-'''def achilles_function2(arg):
+"""def achilles_function2(arg):
     r = get(
         arg,
         headers={"User-Agent": "Mozilla/5.0", "referrer": "https://l.facebook.com/"},
@@ -30,4 +30,4 @@ def achilles_callback(result):
     raw_html = r.text
     markdown_text = html2text(raw_html)
 
-    return markdown_text'''
+    return markdown_text"""
