@@ -346,10 +346,9 @@ def runAchillesServer():
     try:
         if __name__ != "__main__":
             import achilles
+            dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
 
-            dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\.env"
-
-            achilles_function_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+            achilles_function_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
             path.append(achilles_function_path)
 
         else:
@@ -379,8 +378,7 @@ def runAchillesServer():
 def genConfig():
     if __name__ != "__main__":
         import achilles
-
-        dotenv_path = dirname(achilles.__file__) + "\\lineReceiver\\"
+        dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
     else:
         basedir = abspath(dirname(__file__))
         dotenv_path = join(basedir, ".env")
