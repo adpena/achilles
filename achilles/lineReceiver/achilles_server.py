@@ -201,7 +201,7 @@ class AchillesServer(LineReceiver):
                             "Final results packet has been transmitted to the achilles_controller."
                         )
 
-        elif "GET_CLUSTER_STATUS" in data:
+        elif "GET_CLUSTER_STATUS" in data and self.AUTHENTICATED is True:
             packet = {"CLUSTER_STATUS": True}
             for client in self.factory.clients:
                 packet[str(client.CLIENT_ID)] = {}
@@ -219,7 +219,7 @@ class AchillesServer(LineReceiver):
 
             self.factory.achilles_controller.sendLine(cloudpickle.dumps(packet))
 
-        elif "KILL_CLUSTER" in data:
+        elif "KILL_CLUSTER" in data and self.AUTHENTICATED is True:
             for client in self.factory.clients:
                 client.sendLine(cloudpickle.dumps({"KILL_NODE": "KILL_NODE"}))
 

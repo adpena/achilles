@@ -18,11 +18,14 @@ from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
 
+# imports for achilles_function, achilles_args, achilles_callback
+import ast
+
 
 class AchillesController(LineReceiver):
     MAX_LENGTH = 999999
 
-    def __init__(self, host, port, username, secret_key):
+    def __init__(self, host, port, username, secret_key, achilles_function=None, achilles_args=None, achilles_callback=None):
 
         self.HOST = host  # The server's hostname or IP address
         self.PORT = port  # The port used by the server
@@ -33,6 +36,9 @@ class AchillesController(LineReceiver):
         self.sqlite_db = ""
         self.args_count = 0
         self.abs_counter = 0
+        self.achilles_function = achilles_function
+        self.achilles_args = achilles_args
+        self.achilles_callback = achilles_callback
 
     def lineReceived(self, data):
         data = cloudpickle.loads(data)
@@ -167,35 +173,41 @@ class AchillesController(LineReceiver):
             print(data)
             self.command_interface()
 
-    def achilles_compute(self, achilles_config_path="", response_mode=""):
+    def achilles_compute(self, achilles_config_path=None, response_mode=""):
         if __name__ != "__main__":
             import achilles
 
             achilles_function_path = (
                 abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
             )
+            print(achilles_function_path)
             path.append(achilles_function_path)
         else:
             achilles_function_path = abspath(dirname(__file__))
+            print(achilles_function_path)
             path.append(achilles_function_path)
 
-        from achilles.lineReceiver.achilles_function import (
-            achilles_function,
-            achilles_args,
-            achilles_callback,
-        )
+        if self.achilles_function is None and self.achilles_args is None:
+            from achilles.lineReceiver.achilles_function import (
+                achilles_function,
+                achilles_args,
+                achilles_callback,
+            )
+            achilles_config_path = achilles_function_path + achilles_config_path
+            with open(achilles_config_path, "r") as f:
+                achilles_config = yaml.load(f, Loader=yaml.Loader)
+                args_path = achilles_function_path + achilles_config["ARGS_PATH"]
+                try:
+                    achilles_args = achilles_config["ARGS"]
+                except KeyError:
+                    achilles_args = achilles_args
 
-        achilles_config_path = achilles_function_path + achilles_config_path
-        with open(achilles_config_path, "r") as f:
-            achilles_config = yaml.load(f, Loader=yaml.Loader)
-        try:
-            args_path = achilles_function_path + achilles_config["ARGS_PATH"]
-        except KeyError:
+        else:
+            achilles_function = self.achilles_function
+            achilles_args = self.achilles_args
+            achilles_callback = self.achilles_callback
             args_path = None
-        try:
-            achilles_args = achilles_config["ARGS"]
-        except KeyError:
-            achilles_args = achilles_args
+
         self.args_count = 0
         try:
             for arg in achilles_args(args_path):
@@ -257,9 +269,12 @@ class AchillesController(LineReceiver):
             self.command_interface()
 
     def init_achilles_compute(self):
-        achilles_config_path = input(
-            "Enter path to achilles_config.yaml to begin job:\t"
-        )
+        if self.achilles_function is None and self.achilles_args is None:
+            achilles_config_path = input(
+                "Enter path to achilles_config.yaml to begin job:\t"
+            )
+        else:
+            achilles_config_path = None
         response_mode = input(
             f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
         )
@@ -274,7 +289,7 @@ class AchillesController(LineReceiver):
             self.init_achilles_compute()
 
 
-def runAchillesController():
+def runAchillesController(achilles_function=None, achilles_args=None, achilles_callback=None):
     try:
         if __name__ != "__main__":
             import achilles
@@ -296,7 +311,7 @@ def runAchillesController():
         host, port, username, secret_key = genConfig()
 
     endpoint = TCP4ClientEndpoint(reactor, host, port)
-    d = connectProtocol(endpoint, AchillesController(host, port, username, secret_key))
+    d = connectProtocol(endpoint, AchillesController(host, port, username, secret_key, achilles_function, achilles_args, achilles_callback))
 
     reactor.run()
 
