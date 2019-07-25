@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-import socket
-import cloudpickle
 from sys import path
 from os import getenv
 from os.path import dirname, abspath, join
-
-from multiprocessing import Pool
 from dotenv import load_dotenv
+from datetime import datetime
+
+from multiprocess import Pool, cpu_count
+import socket
+import dill
 
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
-import multiprocessing
-from datetime import datetime
 
 
 class AchillesNode(LineReceiver):
@@ -32,17 +31,17 @@ class AchillesNode(LineReceiver):
         self.handleData(data)
 
     def handleData(self, data):
-        data = cloudpickle.loads(data)
+        data = dill.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]
             client_id = data["CLIENT_ID"]
             self.client_id = client_id
             print("GREETING:", greeting)
             print("CLIENT_ID", client_id)
-            packet = cloudpickle.dumps(
+            packet = dill.dumps(
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
-                    "CPU_COUNT": multiprocessing.cpu_count(),
+                    "CPU_COUNT": cpu_count(),
                     "DATETIME_CONNECTED": datetime.now(),
                     "CLIENT_ID": self.client_id,
                 }
@@ -51,21 +50,22 @@ class AchillesNode(LineReceiver):
         elif "START_JOB" in data:
             func = data["FUNC"]
             self.func = func
-            packet = cloudpickle.dumps({"CLIENT_ID": self.client_id, "READY": True})
+            packet = dill.dumps({"CLIENT_ID": self.client_id, "READY": True})
             print("START_JOB RESPONSE:", packet)
             self.sendLine(packet)
         elif "ARG" in data:
+            print("TEST RESULTS:", self.func(2), self.func(3))
             print("ARG:", data["ARG"])
-            with Pool(multiprocessing.cpu_count()) as p:
+            with Pool(cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
                 p.close()
-            packet = cloudpickle.dumps(
+            packet = dill.dumps(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}
             )
             print("RESPONSE PACKET:", packet)
             self.sendLine(packet)
         elif "KILL_NODE" in data:
-            self.sendLine(cloudpickle.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"}))
+            self.sendLine(dill.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"}))
             self.transport.loseConnection()
             reactor.stop()
 

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import cloudpickle
-from dotenv import load_dotenv
 
-import getpass
 from sys import stderr, path
 from os import getenv
 from os.path import dirname, abspath, join
+from dotenv import load_dotenv
+import getpass
 from types import GeneratorType
+
+import dill
 
 from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
@@ -38,7 +39,7 @@ class AchillesServer(LineReceiver):
         self.factory.totalProtocols = self.factory.totalProtocols + 1
         print("Number of connections:", self.factory.numProtocols)
         self.factory.clients.append(self)
-        packet = cloudpickle.dumps(
+        packet = dill.dumps(
             {
                 "GREETING": f"Welcome! There are currently {self.factory.numProtocols} open connections.\n",
                 "CLIENT_ID": self.CLIENT_ID,
@@ -53,7 +54,7 @@ class AchillesServer(LineReceiver):
         self.factory.clients.remove(self)
 
     def lineReceived(self, data):
-        data = cloudpickle.loads(data)
+        data = dill.loads(data)
         print("RECEIVED:", data)
         if "USERNAME" in data and "SECRET_KEY" in data:
             if (
@@ -65,14 +66,14 @@ class AchillesServer(LineReceiver):
                 self.IP = data["IP"]
                 self.CPU_COUNT = data["CPU_COUNT"]
                 self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
-                self.sendLine(cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
+                self.sendLine(dill.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
                 print(f"User {data['USERNAME']} is authenticated.")
                 self.factory.achilles_controller = self
 
                 # for client in self.factory.clients:
                 # print(client.__dict__)
             else:
-                self.sendLine(cloudpickle.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
+                self.sendLine(dill.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
                 stderr.write(
                     "This USERNAME and SECRET_KEY cannot be authenticated. Closing connection."
                 )
@@ -112,15 +113,13 @@ class AchillesServer(LineReceiver):
                 try:
                     if isinstance(self.factory.args, GeneratorType):
                         args_counter, arg = next(self.factory.args)
-                        packet = cloudpickle.dumps(
-                            {"ARG": arg, "ARGS_COUNTER": args_counter}
-                        )
+                        packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
                         self.sendLine(packet)
                         print(
                             f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
                         )
                     else:
-                        packet = cloudpickle.dumps(
+                        packet = dill.dumps(
                             {
                                 "ARG": next(self.factory.args),
                                 "ARGS_COUNTER": self.factory.args_counter,
@@ -137,7 +136,7 @@ class AchillesServer(LineReceiver):
                     if len(self.factory.workers) > 1:
                         if self.factory.lastCounter == 0:
                             self.factory.achilles_controller.sendLine(
-                                cloudpickle.dumps(
+                                dill.dumps(
                                     {
                                         "FINAL_RESULT": self.factory.gatherResults(
                                             self.factory
@@ -150,7 +149,7 @@ class AchillesServer(LineReceiver):
                             self.factory.lastCounter = self.factory.lastCounter - 1
                     elif len(self.factory.workers) == 1:
                         self.factory.achilles_controller.sendLine(
-                            cloudpickle.dumps(
+                            dill.dumps(
                                 {
                                     "FINAL_RESULT": self.factory.gatherResults(
                                         self.factory
@@ -162,19 +161,17 @@ class AchillesServer(LineReceiver):
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
-                self.factory.achilles_controller.sendLine(cloudpickle.dumps(data))
+                self.factory.achilles_controller.sendLine(dill.dumps(data))
                 try:
                     if isinstance(self.factory.args, GeneratorType):
                         args_counter, arg = next(self.factory.args)
-                        packet = cloudpickle.dumps(
-                            {"ARG": arg, "ARGS_COUNTER": args_counter}
-                        )
+                        packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
                         self.sendLine(packet)
                         print(
                             f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
                         )
                     else:
-                        packet = cloudpickle.dumps(
+                        packet = dill.dumps(
                             {
                                 "ARG": next(self.factory.args),
                                 "ARGS_COUNTER": self.factory.args_counter,
@@ -217,11 +214,11 @@ class AchillesServer(LineReceiver):
                     client.AUTHENTICATED
                 )
 
-            self.factory.achilles_controller.sendLine(cloudpickle.dumps(packet))
+            self.factory.achilles_controller.sendLine(dill.dumps(packet))
 
         elif "KILL_CLUSTER" in data and self.AUTHENTICATED is True:
             for client in self.factory.clients:
-                client.sendLine(cloudpickle.dumps({"KILL_NODE": "KILL_NODE"}))
+                client.sendLine(dill.dumps({"KILL_NODE": "KILL_NODE"}))
 
             for client in self.factory.clients:
                 client.transport.loseConnection()
@@ -259,7 +256,10 @@ class AchillesServer(LineReceiver):
         try:
             self.factory.args = args(args_path)
         except TypeError:
-            self.factory.args = iter(args)
+            try:
+                self.factory.args = iter(args)
+            except TypeError:
+                self.factory.args = iter(args())
         for client in self.factory.clients:
             if client.IP not in ip_list:
                 ip_list.append(client.IP)
@@ -274,22 +274,23 @@ class AchillesServer(LineReceiver):
         self.factory.ipMap = ip_map
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
+        test_result = func(2)
+        test_result2 = func(3)
+        # print("TEST RESULTS:", test_result, test_result2)
         for client in self.factory.workers:
-            client.sendLine(cloudpickle.dumps({"START_JOB": True, "FUNC": func}))
-        self.factory.achilles_controller.sendLine(cloudpickle.dumps({"PROCEED": True}))
+            client.sendLine(dill.dumps({"START_JOB": True, "FUNC": func}))
+        self.factory.achilles_controller.sendLine(dill.dumps({"PROCEED": True}))
 
     def proceedWithJob(self):
         for worker in self.factory.workers:
             try:
                 if isinstance(self.factory.args, GeneratorType):
                     args_counter, arg = next(self.factory.args)
-                    packet = cloudpickle.dumps(
-                        {"ARG": arg, "ARGS_COUNTER": args_counter}
-                    )
+                    packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
                     worker.sendLine(packet)
                     print(f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}")
                 else:
-                    packet = cloudpickle.dumps(
+                    packet = dill.dumps(
                         {
                             "ARG": next(self.factory.args),
                             "ARGS_COUNTER": self.factory.args_counter,

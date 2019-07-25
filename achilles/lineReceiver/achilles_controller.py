@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import socket
-import cloudpickle
+import dill
 from sys import stderr, path
 import sqlite3
 import json
@@ -18,14 +18,20 @@ from twisted.internet import reactor
 import multiprocessing
 from datetime import datetime
 
-# imports for achilles_function, achilles_args, achilles_callback
-import ast
-
 
 class AchillesController(LineReceiver):
     MAX_LENGTH = 999999
 
-    def __init__(self, host, port, username, secret_key, achilles_function=None, achilles_args=None, achilles_callback=None):
+    def __init__(
+        self,
+        host,
+        port,
+        username,
+        secret_key,
+        achilles_function=None,
+        achilles_args=None,
+        achilles_callback=None,
+    ):
 
         self.HOST = host  # The server's hostname or IP address
         self.PORT = port  # The port used by the server
@@ -41,11 +47,11 @@ class AchillesController(LineReceiver):
         self.achilles_callback = achilles_callback
 
     def lineReceived(self, data):
-        data = cloudpickle.loads(data)
+        data = dill.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]
             print("GREETING:", greeting)
-            packet = cloudpickle.dumps(
+            packet = dill.dumps(
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
                     "CPU_COUNT": multiprocessing.cpu_count(),
@@ -70,7 +76,7 @@ class AchillesController(LineReceiver):
                 print(
                     "PROCEEDING WITH DISTRIBUTING ARGUMENTS AMONGST THE CONNECTED NODES..."
                 )
-                self.sendLine(cloudpickle.dumps({"VERIFY": True}))
+                self.sendLine(dill.dumps({"VERIFY": True}))
             else:
                 stderr.write("ALERT: Job cancelled.")
                 self.command_interface()
@@ -193,34 +199,45 @@ class AchillesController(LineReceiver):
                 achilles_args,
                 achilles_callback,
             )
+
             achilles_config_path = achilles_function_path + achilles_config_path
             with open(achilles_config_path, "r") as f:
                 achilles_config = yaml.load(f, Loader=yaml.Loader)
-                args_path = achilles_function_path + achilles_config["ARGS_PATH"]
+                try:
+                    args_path = achilles_function_path + achilles_config["ARGS_PATH"]
+                except KeyError:
+                    args_path = None
                 try:
                     achilles_args = achilles_config["ARGS"]
                 except KeyError:
                     achilles_args = achilles_args
+                modules = achilles_config["MODULES"]
+                group = achilles_config["GROUP"]
 
         else:
             achilles_function = self.achilles_function
             achilles_args = self.achilles_args
             achilles_callback = self.achilles_callback
             args_path = None
+            modules = None
+            group = None
 
         self.args_count = 0
         try:
             for arg in achilles_args(args_path):
                 self.args_count = self.args_count + 1
         except TypeError:
-            for arg in achilles_args:
-                self.args_count = self.args_count + 1
+            try:
+                for arg in achilles_args:
+                    self.args_count = self.args_count + 1
+            except TypeError:
+                for arg in achilles_args():
+                    self.args_count = self.args_count + 1
+
         print("ARGS COUNT:", self.args_count)
         self.response_mode = response_mode
-        modules = achilles_config["MODULES"]
-        group = achilles_config["GROUP"]
 
-        packet = cloudpickle.dumps(
+        packet = dill.dumps(
             {
                 "FUNC": achilles_function,
                 "ARGS": achilles_args,
@@ -235,7 +252,7 @@ class AchillesController(LineReceiver):
         self.sendLine(packet)
 
     def get_cluster_status(self):
-        packet = cloudpickle.dumps({"GET_CLUSTER_STATUS": "GET_CLUSTER_STATUS"})
+        packet = dill.dumps({"GET_CLUSTER_STATUS": "GET_CLUSTER_STATUS"})
         self.sendLine(packet)
         print("ALERT: Requested cluster status.")
 
@@ -244,7 +261,7 @@ class AchillesController(LineReceiver):
             "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed."
         )
         if confirm_kill_cluster == "YES":
-            packet = cloudpickle.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
+            packet = dill.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
             self.sendLine(packet)
         else:
             stderr.write("ALERT: kill_cluster aborted.")
@@ -289,7 +306,9 @@ class AchillesController(LineReceiver):
             self.init_achilles_compute()
 
 
-def runAchillesController(achilles_function=None, achilles_args=None, achilles_callback=None):
+def runAchillesController(
+    achilles_function=None, achilles_args=None, achilles_callback=None
+):
     try:
         if __name__ != "__main__":
             import achilles
@@ -311,7 +330,18 @@ def runAchillesController(achilles_function=None, achilles_args=None, achilles_c
         host, port, username, secret_key = genConfig()
 
     endpoint = TCP4ClientEndpoint(reactor, host, port)
-    d = connectProtocol(endpoint, AchillesController(host, port, username, secret_key, achilles_function, achilles_args, achilles_callback))
+    d = connectProtocol(
+        endpoint,
+        AchillesController(
+            host,
+            port,
+            username,
+            secret_key,
+            achilles_function,
+            achilles_args,
+            achilles_callback,
+        ),
+    )
 
     reactor.run()
 

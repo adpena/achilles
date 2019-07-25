@@ -1,7 +1,8 @@
-cloudpickle
 python-dotenv
 twisted
 pyyaml
+dill
+multiprocess
 
 # Note that pywin32 may be required in order to use twisted on Windows, and deployment on all platforms requires the presence of a C compiler (i.e. Visual Studio C++ Build Tools).
 # pywin32
