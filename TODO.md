@@ -1,17 +1,42 @@
-Implement callback; how to implement modules and other ideas from pp?
+Improve documentation w/ installation instructions, how to use, etc. Update with instructions on how to use map API and imap API.
 
-Improve documentation w/ installation instructions, how to use, etc.
+Improve inline documentation.
 
-Ability for multiple achilles_controllers to connect to the achilles_server and run multiple jobs at the same time.
+Fix imap implementation:
+1) doesn't work if first result received doesn't include "ARGS_COUNTER": 0
+* Weird behavior if this follows after an imap_unordered loop, especially with large chunk size.
 
-Add unit tests
+Change how OBJECT response mode's final response is calculated; do it using Queues in the achilles_controller instead of in the achilles_server.
+
+Change yield function so generators are not expected to yield args_counter..at least consider...
 
 ---
 
-Encryption/authentication/security concerns
+Ability for multiple achilles_controllers to connect to the achilles_server and run multiple jobs at the same time.
 
-Cythonize - how to automate for each platform the achilles_server or achilles_node might be deployed on? Compile for common platforms and then test during runtime to determine whether CPython or Cython implementation should be used?
+Add unit tests.
 
-Rustify any remaining bottlenecks
+Examples folder:
+1) Add example that performs word count on arbitrary text.
 
-Create ssh implementation
+Encryption/authentication/security concerns (create SSH implementation using TwistedConch).
+
+Cythonize - how to automate for each platform in setup.py.
+
+Rustify/Gopherize any remaining bottlenecks.
+
+Implement fault tolerance.
+
+Implement error_callback to give the developer more insight into what's happening in the nodes without having to check their terminals.
+
+How to implement modules and other ideas from pp?
+
+Identify blocks of duplicate code and pull them into functions (multiple response modes, proceedWithJob/lineReceiver).
+
+Implement and test SQLITE response mode - is this still relevant?
+
+Delete unnecessary comments.
+
+Resolve naming conflicts between node/worker/etc. for clarity of mental model.
+
+Resolve syntax issues (snake_case where it should be camelCase, vice versa)

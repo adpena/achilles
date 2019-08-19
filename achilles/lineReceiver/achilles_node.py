@@ -36,8 +36,11 @@ class AchillesNode(LineReceiver):
             greeting = data["GREETING"]
             client_id = data["CLIENT_ID"]
             self.client_id = client_id
-            print("GREETING:", greeting)
-            print("CLIENT_ID", client_id)
+            print(
+                "GREETING:",
+                f"{greeting}\nConnected to achilles_server running at {self.HOST}:{self.PORT}",
+            )
+            print("CLIENT_ID:", client_id)
             packet = dill.dumps(
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
@@ -51,18 +54,17 @@ class AchillesNode(LineReceiver):
             func = data["FUNC"]
             self.func = func
             packet = dill.dumps({"CLIENT_ID": self.client_id, "READY": True})
-            print("START_JOB RESPONSE:", packet)
+            # print("START_JOB RESPONSE:", packet)
             self.sendLine(packet)
         elif "ARG" in data:
-            print("TEST RESULTS:", self.func(2), self.func(3))
-            print("ARG:", data["ARG"])
+            # print("ARG:", data["ARG"])
             with Pool(cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
                 p.close()
             packet = dill.dumps(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}
             )
-            print("RESPONSE PACKET:", packet)
+            # print("RESPONSE PACKET:", packet)
             self.sendLine(packet)
         elif "KILL_NODE" in data:
             self.sendLine(dill.dumps({"KILLED_CLUSTER": "KILLED_CLUSTER"}))
@@ -70,33 +72,36 @@ class AchillesNode(LineReceiver):
             reactor.stop()
 
 
-def runAchillesNode():
-    try:
-        if __name__ != "__main__":
-            import achilles
+def runAchillesNode(host=None, port=None):
+    if host is not None and port is not None:
+        pass
+    else:
+        try:
+            if __name__ != "__main__":
+                import achilles
 
-            dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                dotenv_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                )
 
-            achilles_function_path = (
-                abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
-            )
-            path.append(achilles_function_path)
+                achilles_function_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
+                )
+                path.append(achilles_function_path)
 
-        else:
-            basedir = abspath(dirname(__file__))
-            dotenv_path = join(basedir, ".env")
+            else:
+                basedir = abspath(dirname(__file__))
+                dotenv_path = join(basedir, ".env")
 
-            achilles_function_path = abspath(dirname(__file__))
-            path.append(achilles_function_path)
-        load_dotenv(dotenv_path, override=True)
-        port = int(getenv("PORT"))
-        host = getenv("HOST")
+                achilles_function_path = abspath(dirname(__file__))
+                path.append(achilles_function_path)
+            load_dotenv(dotenv_path, override=True)
+            port = int(getenv("PORT"))
+            host = getenv("HOST")
 
-    except BaseException as e:
-        print(
-            f"No .env configuration file found ({e}). Follow the prompts below to generate one:"
-        )
-        host, port = genConfig()
+        except BaseException as e:
+            print(f"No .env configuration file found ({e})...")
+            host, port = genConfig()
 
     endpoint = TCP4ClientEndpoint(reactor, host, port)
     d = connectProtocol(endpoint, AchillesNode(host, port))
@@ -104,7 +109,7 @@ def runAchillesNode():
     reactor.run()
 
 
-def genConfig():
+def genConfig(host=None, port=None):
     if __name__ != "__main__":
         import achilles
 
@@ -112,14 +117,17 @@ def genConfig():
     else:
         basedir = abspath(dirname(__file__))
         dotenv_path = join(basedir, ".env")
-    host = input("Enter HOST IP address:\t")
-    port = int(input("Enter HOST port to connect to:\t"))
+    if host is not None and port is not None:
+        pass
+    else:
+        host = input("Enter HOST IP address:\t")
+        port = int(input("Enter HOST port to connect to:\t"))
     with open(dotenv_path, "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
         config_file.close()
         print(
-            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_node.genConfig() to overwrite."
+            f"Successfully generated .env configuration file at {dotenv_path}. Use achilles_node.genConfig() to overwrite."
         )
     return host, port
 

@@ -16,7 +16,7 @@ from twisted.internet.endpoints import TCP4ServerEndpoint
 
 
 class AchillesServer(LineReceiver):
-    MAX_LENGTH = 999999
+    MAX_LENGTH = 999999999999999999999999999999999
 
     def __init__(self, factory):
         self.factory = factory
@@ -34,10 +34,10 @@ class AchillesServer(LineReceiver):
         self.CLIENT_ID = self.factory.totalProtocols
 
     def connectionMade(self):
-        print("Starting connection #:", self.factory.numProtocols)
+        # print("Starting connection #:", self.factory.numProtocols)
         self.factory.numProtocols = self.factory.numProtocols + 1
         self.factory.totalProtocols = self.factory.totalProtocols + 1
-        print("Number of connections:", self.factory.numProtocols)
+        # print("Number of connections:", self.factory.numProtocols)
         self.factory.clients.append(self)
         packet = dill.dumps(
             {
@@ -55,7 +55,7 @@ class AchillesServer(LineReceiver):
 
     def lineReceived(self, data):
         data = dill.loads(data)
-        print("RECEIVED:", data)
+        # print("RECEIVED:", data)
         if "USERNAME" in data and "SECRET_KEY" in data:
             if (
                 data["USERNAME"] == self.factory.USERNAME
@@ -81,7 +81,7 @@ class AchillesServer(LineReceiver):
                 # for client in self.factory.clients:
                 # print(client.__dict__)
         elif "IP" in data and "CPU_COUNT" in data and self.AUTHENTICATED is False:
-            print("Clients:", self.factory.clients)
+            # print("Clients:", self.factory.clients)
             self.IP = data["IP"]
             self.CPU_COUNT = data["CPU_COUNT"]
             self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
@@ -92,111 +92,53 @@ class AchillesServer(LineReceiver):
             func = data["FUNC"]
             args = data["ARGS"]
             args_path = data["ARGS_PATH"]
-            args_count = data["ARGS_COUNT"]
             modules = data["MODULES"]
             callback = data["CALLBACK"]
             group = data["GROUP"]
             response_mode = data["RESPONSE_MODE"]
+            chunk_size = data["CHUNK_SIZE"]
             self.factory.response_mode = response_mode
+            self.factory.chunk_size = chunk_size
 
-            self.startJob(func, args, args_path, args_count, modules, callback, group)
+            self.startJob(func, args, args_path, modules, callback, group)
         elif self.AUTHENTICATED is False and "READY" in data:
-            print(f"CLIENT STATUS: {data}")
+            # print(f"CLIENT STATUS: {data}")
+            pass
 
         elif self.AUTHENTICATED is True and "VERIFY" in data:
             self.proceedWithJob()
 
         elif "RESULT" in data:
-            print("RESULTS PACKET:", data)
+            # print("RESULTS PACKET:", data)
             if self.factory.response_mode == "OBJECT":
                 self.factory.results.append(data)
-                try:
-                    if isinstance(self.factory.args, GeneratorType):
-                        args_counter, arg = next(self.factory.args)
-                        packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
-                        )
-                    else:
-                        packet = dill.dumps(
-                            {
-                                "ARG": next(self.factory.args),
-                                "ARGS_COUNTER": self.factory.args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
-                        )
-                        self.factory.args_counter = self.factory.args_counter + 1
 
-                except StopIteration:
-                    print("The arguments have been exhausted.")
-                    if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
-                            self.factory.achilles_controller.sendLine(
-                                dill.dumps(
-                                    {
-                                        "FINAL_RESULT": self.factory.gatherResults(
-                                            self.factory
-                                        )
-                                    }
-                                )
-                            )
+                if isinstance(self.factory.args, GeneratorType):
+                    try:
+                        loadBalanceGen(self.factory.args, self)
+                    except StopIteration:
+                        handleStopIteration(response_mode="OBJECT", worker=self)
+                else:
+                    try:
+                        loadBalanceList(self.factory.args, self)
+                    except StopIteration:
+                        handleStopIteration(response_mode="OBJECT", worker=self)
 
-                        else:
-                            self.factory.lastCounter = self.factory.lastCounter - 1
-                    elif len(self.factory.workers) == 1:
-                        self.factory.achilles_controller.sendLine(
-                            dill.dumps(
-                                {
-                                    "FINAL_RESULT": self.factory.gatherResults(
-                                        self.factory
-                                    )
-                                }
-                            )
-                        )
             elif (
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
                 self.factory.achilles_controller.sendLine(dill.dumps(data))
-                try:
-                    if isinstance(self.factory.args, GeneratorType):
-                        args_counter, arg = next(self.factory.args)
-                        packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {args_counter} sent to {self.CLIENT_ID}"
-                        )
-                    else:
-                        packet = dill.dumps(
-                            {
-                                "ARG": next(self.factory.args),
-                                "ARGS_COUNTER": self.factory.args_counter,
-                            }
-                        )
-                        self.sendLine(packet)
-                        print(
-                            f"Packet with arg {self.factory.args_counter} sent to {self.CLIENT_ID}"
-                        )
-                        self.factory.args_counter = self.factory.args_counter + 1
-
-                except StopIteration:
-                    print("The arguments have been exhausted.")
-                    if len(self.factory.workers) > 1:
-                        if self.factory.lastCounter == 0:
-                            print(
-                                "Final results packet has been transmitted to the achilles_controller."
-                            )
-
-                        else:
-                            self.factory.lastCounter = self.factory.lastCounter - 1
-                    elif len(self.factory.workers) == 1:
-                        print(
-                            "Final results packet has been transmitted to the achilles_controller."
-                        )
+                if isinstance(self.factory.args, GeneratorType):
+                    try:
+                        loadBalanceGen(self.factory.args, self)
+                    except StopIteration:
+                        handleStopIteration(response_mode="STREAM", worker=self)
+                else:
+                    try:
+                        loadBalanceList(self.factory.args, self)
+                    except StopIteration:
+                        handleStopIteration(response_mode="STREAM", worker=self)
 
         elif "GET_CLUSTER_STATUS" in data and self.AUTHENTICATED is True:
             packet = {"CLUSTER_STATUS": True}
@@ -227,17 +169,10 @@ class AchillesServer(LineReceiver):
             reactor.stop()
 
         else:
-            print(data)
+            print("UNEXPECTED", data)
 
     def startJob(
-        self,
-        func,
-        args=(),
-        args_path="",
-        args_count=0,
-        modules=None,
-        callback=None,
-        group="",
+        self, func, args=(), args_path="", modules=None, callback=None, group=""
     ):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
@@ -246,9 +181,10 @@ class AchillesServer(LineReceiver):
         self.factory.args_path = ""
         self.factory.results = []
         self.factory.args_counter = 0
+        self.factory.callback = callback
 
-        print("MAP FUNC:", func)
-        print("MAP ARGS:", args)
+        # print("MAP FUNC:", func)
+        # print("MAP ARGS:", args)
         ip_list = []
         ip_map = []
         workers_list = []
@@ -274,35 +210,114 @@ class AchillesServer(LineReceiver):
         self.factory.ipMap = ip_map
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
-        test_result = func(2)
-        test_result2 = func(3)
-        # print("TEST RESULTS:", test_result, test_result2)
         for client in self.factory.workers:
             client.sendLine(dill.dumps({"START_JOB": True, "FUNC": func}))
         self.factory.achilles_controller.sendLine(dill.dumps({"PROCEED": True}))
 
     def proceedWithJob(self):
         for worker in self.factory.workers:
+
+            if isinstance(self.factory.args, GeneratorType):
+                try:
+                    loadBalanceGen(self.factory.args, worker)
+                except StopIteration:
+                    handleStopIteration(self.factory.response_mode, self)
+            else:
+                try:
+                    loadBalanceList(self.factory.args, worker)
+                except StopIteration:
+                    handleStopIteration(self.factory.response_mode, self)
+
+
+def handleStopIteration(response_mode, worker):
+    if response_mode == "STREAM":
+        if len(worker.factory.workers) > 1:
+            if worker.factory.lastCounter == 0:
+                print(
+                    "Final results packet has been transmitted to the achilles_controller."
+                )
+                worker.factory.achilles_controller.sendLine(
+                    dill.dumps({"JOB_FINISHED": True})
+                )
+            else:
+                worker.factory.lastCounter = worker.factory.lastCounter - 1
+        elif len(worker.factory.workers) == 1:
+            print(
+                "Final results packet has been transmitted to the achilles_controller."
+            )
+            worker.factory.achilles_controller.sendLine(
+                dill.dumps({"JOB_FINISHED": True})
+            )
+    elif response_mode == "OBJECT":
+        print("The arguments have been exhausted.")
+        if len(worker.factory.workers) > 1:
+            if worker.factory.lastCounter == 0:
+                final_result = worker.factory.gatherResults(worker.factory)
+                worker.factory.achilles_controller.sendLine(
+                    dill.dumps({"FINAL_RESULT": final_result})
+                )
+
+            else:
+                worker.factory.lastCounter = worker.factory.lastCounter - 1
+        elif len(worker.factory.workers) == 1:
+            final_result = worker.factory.gatherResults(worker.factory)
+            worker.factory.achilles_controller.sendLine(
+                dill.dumps({"FINAL_RESULT": final_result})
+            )
+
+
+def loadBalanceGen(args_generator, worker):
+    test_args_counter, test_arg = next(args_generator)
+    sent_packet = False
+    if type(test_arg) is list:
+        packet = dill.dumps({"ARG": test_arg, "ARGS_COUNTER": test_args_counter})
+        worker.sendLine(packet)
+        # print(f"Packet with arg {test_args_counter} sent to {worker.CLIENT_ID}")
+    else:
+        cpu_count = int(worker.CPU_COUNT)
+        packet = {"ARG": [test_arg], "ARGS_COUNTER": test_args_counter}
+        balancer = worker.factory.chunk_size * cpu_count - 1
+        for i in range(balancer):
             try:
-                if isinstance(self.factory.args, GeneratorType):
-                    args_counter, arg = next(self.factory.args)
-                    packet = dill.dumps({"ARG": arg, "ARGS_COUNTER": args_counter})
-                    worker.sendLine(packet)
-                    print(f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}")
-                else:
-                    packet = dill.dumps(
-                        {
-                            "ARG": next(self.factory.args),
-                            "ARGS_COUNTER": self.factory.args_counter,
-                        }
-                    )
-                    worker.sendLine(packet)
-                    print(
-                        f"Packet with arg {self.factory.args_counter} sent to {worker.CLIENT_ID}"
-                    )
-                    self.factory.args_counter = self.factory.args_counter + 1
+                packet["ARG"].append(next(args_generator)[1])
             except StopIteration:
-                print("The arguments iterable was empty.")
+                worker.sendLine(dill.dumps(packet))
+                sent_packet = True
+                break
+        if sent_packet is not True:
+            worker.sendLine(dill.dumps(packet))
+        # print(f"Packet with arg {test_args_counter} sent to {worker.CLIENT_ID}")
+
+
+def loadBalanceList(args_iterable, worker):
+    test_arg = next(args_iterable)
+    if type(test_arg) is list:
+        packet = dill.dumps(
+            {"ARG": test_arg, "ARGS_COUNTER": int(worker.factory.args_counter)}
+        )
+        worker.sendLine(packet)
+        """print(
+            f"Packet with arg {worker.factory.args_counter} sent to {worker.CLIENT_ID}"
+        )"""
+        worker.factory.args_counter = worker.factory.args_counter + 1
+    else:
+        cpu_count = int(worker.CPU_COUNT)
+        args_counter = worker.factory.args_counter
+        packet = {"ARG": [test_arg], "ARGS_COUNTER": args_counter}
+        sent_packet = False
+        balancer = worker.factory.chunk_size * cpu_count - 1
+        for i in range(balancer):
+            try:
+                packet["ARG"].append(next(worker.factory.args))
+                worker.factory.args_counter = worker.factory.args_counter + 1
+            except StopIteration:
+                worker.sendLine(dill.dumps(packet))
+                sent_packet = True
+                break
+        if sent_packet is not True:
+            worker.sendLine(dill.dumps(packet))
+        # print(f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}")
+        worker.factory.args_counter = worker.factory.args_counter + 1
 
 
 class AchillesServerFactory(Factory):
@@ -315,7 +330,6 @@ class AchillesServerFactory(Factory):
     achilles_controller = None
     args = None
     args_path = ""
-    args_count = 0
     args_counter = 0
     results = []
     lastCounter = 0
@@ -338,48 +352,62 @@ class AchillesServerFactory(Factory):
     def gatherResults(self):
         final_results = []
         self.results = sorted(self.results, key=lambda k: k["ARGS_COUNTER"])
-        for result in self.results:
-            final_results.append(result["RESULT"])
+        if self.callback is None:
+            for result in self.results:
+                final_results.append(result["RESULT"])
+        else:
+            for result in self.results:
+                result_dict = self.callback(result)
+                final_results.append(result_dict["RESULT"])
         return final_results
 
 
-def runAchillesServer():
-    try:
-        if __name__ != "__main__":
-            import achilles
+def runAchillesServer(host=None, port=None, username=None, secret_key=None):
+    if (
+        host is not None
+        and port is not None
+        and username is not None
+        and secret_key is not None
+    ):
+        pass
+    else:
+        try:
+            if __name__ != "__main__":
+                import achilles
 
-            dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                dotenv_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                )
 
-            achilles_function_path = (
-                abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
-            )
-            path.append(achilles_function_path)
+                achilles_function_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
+                )
+                path.append(achilles_function_path)
 
-        else:
-            basedir = abspath(dirname(__file__))
-            dotenv_path = join(basedir, ".env")
+            else:
+                basedir = abspath(dirname(__file__))
+                dotenv_path = join(basedir, ".env")
 
-            achilles_function_path = abspath(dirname(__file__))
-            path.append(achilles_function_path)
-        load_dotenv(dotenv_path, override=True)
-        port = int(getenv("PORT"))
-        host = getenv("HOST")
-        username = getenv("USERNAME")
-        secret_key = getenv("SECRET_KEY")
+                achilles_function_path = abspath(dirname(__file__))
+                path.append(achilles_function_path)
+            load_dotenv(dotenv_path, override=True)
+            port = int(getenv("PORT"))
+            host = getenv("HOST")
+            username = getenv("USERNAME")
+            secret_key = getenv("SECRET_KEY")
 
-    except BaseException as e:
-        print(
-            f"No .env configuration file found ({e}). Follow the prompts below to generate one:"
-        )
-        host, port, username, secret_key = genConfig()
+        except BaseException as e:
+            print(f"No .env configuration file found ({e})...")
+            host, port, username, secret_key = genConfig()
 
     endpoint = TCP4ServerEndpoint(reactor, port)
     endpoint.listen(AchillesServerFactory(host, port, username, secret_key))
-    print(f"ALERT: achilles_server initiated on HOST {host} at PORT {port}")
+    print(f"ALERT: achilles_server initiated at {host}:{port}\n")
+    print("Listening for connections...")
     reactor.run()
 
 
-def genConfig():
+def genConfig(host=None, port=None, username=None, secret_key=None):
     if __name__ != "__main__":
         import achilles
 
@@ -387,10 +415,21 @@ def genConfig():
     else:
         basedir = abspath(dirname(__file__))
         dotenv_path = join(basedir, ".env")
-    host = input("Enter HOST IP address:\t")
-    port = int(input("Enter host PORT to listen on:\t"))
-    username = input("Enter USERNAME to require for authentication:\t")
-    secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
+
+    if (
+        host is not None
+        and port is not None
+        and username is not None
+        and secret_key is not None
+    ):
+        pass
+    else:
+        host = input("Enter HOST IP address:\t")
+        port = int(input("Enter host PORT to listen on:\t"))
+        username = input("Enter USERNAME to require for authentication:\t")
+        secret_key = getpass.getpass(
+            "Enter SECRET_KEY to require for authentication:\t"
+        )
     with open(dotenv_path + ".env", "w") as config_file:
         config_file.writelines(f"HOST={host}\n")
         config_file.writelines(f"PORT={port}\n")
@@ -398,7 +437,7 @@ def genConfig():
         config_file.writelines(f"SECRET_KEY='{secret_key}'\n")
         config_file.close()
         print(
-            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_server.genConfig() to overwrite."
+            f"Successfully generated .env configuration file at {dotenv_path}. Use achilles_server.genConfig() to overwrite."
         )
     return host, port, username, secret_key
 

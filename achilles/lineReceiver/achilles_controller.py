@@ -15,12 +15,12 @@ import getpass
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
-import multiprocessing
+from multiprocess import cpu_count, Process, Queue, Manager
 from datetime import datetime
 
 
 class AchillesController(LineReceiver):
-    MAX_LENGTH = 999999
+    MAX_LENGTH = 999999999999999999999999999999999
 
     def __init__(
         self,
@@ -31,30 +31,36 @@ class AchillesController(LineReceiver):
         achilles_function=None,
         achilles_args=None,
         achilles_callback=None,
+        response_mode="OBJECT",
+        globals_dict=None,
+        chunk_size=1,
+        command=None,
     ):
 
         self.HOST = host  # The server's hostname or IP address
         self.PORT = port  # The port used by the server
         self.USERNAME = username
         self.SECRET_KEY = secret_key
-        self.response_mode = None
+        self.response_mode = response_mode
         self.sqlite_db_created = False
         self.sqlite_db = ""
-        self.args_count = 0
         self.abs_counter = 0
         self.achilles_function = achilles_function
         self.achilles_args = achilles_args
         self.achilles_callback = achilles_callback
+        self.globals_dict = globals_dict
+        self.chunk_size = chunk_size
+        self.command = command
 
     def lineReceived(self, data):
         data = dill.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]
-            print("GREETING:", greeting)
+            # print("GREETING:", greeting)
             packet = dill.dumps(
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
-                    "CPU_COUNT": multiprocessing.cpu_count(),
+                    "CPU_COUNT": cpu_count(),
                     "DATETIME_CONNECTED": datetime.now(),
                     "USERNAME": self.USERNAME,
                     "SECRET_KEY": self.SECRET_KEY,
@@ -64,29 +70,39 @@ class AchillesController(LineReceiver):
 
         elif "AUTHENTICATED" in data:
             if data["AUTHENTICATED"] is True:
-                print("ALERT: Authentication successful!\n")
-                self.command_interface()
+                print(
+                    f"ALERT: Connection to achilles_server at {self.HOST}:{self.PORT} and authentication successful.\n"
+                )
+                if self.achilles_function is None and self.achilles_args is None:
+                    self.command_interface()
+                elif self.command == "KILL_CLUSTER":
+                    self.kill_cluster()
+                else:
+                    self.init_achilles_compute()
             else:
                 stderr.write("WARNING: Authentication failed.")
                 self.transport.loseConnection()
 
         elif "PROCEED" in data:
-            proceed = input("Press ENTER if ready to proceed:\t")
-            if proceed == "":
-                print(
-                    "PROCEEDING WITH DISTRIBUTING ARGUMENTS AMONGST THE CONNECTED NODES..."
-                )
-                self.sendLine(dill.dumps({"VERIFY": True}))
+            if self.achilles_function is None and self.achilles_args is None:
+                proceed = input("Press ENTER if ready to proceed:\t")
+                if proceed == "":
+                    print(
+                        "PROCEEDING WITH DISTRIBUTING ARGUMENTS AMONGST THE CONNECTED NODES..."
+                    )
+                    self.sendLine(dill.dumps({"VERIFY": True}))
+                else:
+                    stderr.write("ALERT: Job cancelled.")
+                    self.command_interface()
             else:
-                stderr.write("ALERT: Job cancelled.")
-                self.command_interface()
+                self.sendLine(dill.dumps({"VERIFY": True}))
 
         elif "RESULT" in data and self.response_mode == "STREAM":
-            # If STREAM is your chosen response mode, handle results packets here.
-            print(data)
-            # Prematurely calls command_interface in certain instances when the last results packet is returned while jobs remain outstanding.
-            # if data["ARGS_COUNTER"] == self.args_count - 1:
-            # self.command_interface()
+            if self.achilles_function is None and self.achilles_args is None:
+                # If STREAM is your chosen response mode, handle results packets here.
+                print(data)
+            else:
+                self.globals_dict["INPUT_QUEUE"].put(data)
 
         elif "RESULT" in data and self.response_mode == "SQLITE":
             if self.sqlite_db_created is False:
@@ -108,9 +124,7 @@ class AchillesController(LineReceiver):
                         # print(instruction)
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
-                    # finally:
-                    # if data["ARGS_COUNTER"] == self.args_count - 1:
-                    # self.command_interface()
+
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -124,8 +138,6 @@ class AchillesController(LineReceiver):
                             c.execute(instruction)
                             self.abs_counter + self.abs_counter + 1
 
-                    # if data["ARGS_COUNTER"] == self.args_count - 1:
-                    # self.command_interface()
                 c.close()
 
             else:
@@ -142,9 +154,7 @@ class AchillesController(LineReceiver):
                         # print(instruction)
                         c.execute(instruction)
                         self.abs_counter = self.abs_counter + 1
-                    # finally:
-                    # if data["ARGS_COUNTER"] == self.args_count - 1:
-                    # self.command_interface()
+
                 else:
                     for i in range(len(data["RESULT"])):
                         try:
@@ -157,13 +167,22 @@ class AchillesController(LineReceiver):
                             # print(instruction)
                             c.execute(instruction)
                             self.abs_counter + self.abs_counter + 1
-                    # if data["ARGS_COUNTER"] == self.args_count - 1:
-                    # self.command_interface()
+
                 c.close()
 
         elif "FINAL_RESULT" in data:
-            print("FINAL RESULT:", data["FINAL_RESULT"])
-            self.command_interface()
+            if self.achilles_function is None and self.achilles_args is None:
+                print("FINAL RESULT:", data["FINAL_RESULT"])
+                self.command_interface()
+            else:
+                # print("FINAL RESULT:", data["FINAL_RESULT"])
+                self.globals_dict["FINAL_RESULT"] = data["FINAL_RESULT"]
+                self.transport.loseConnection()
+                reactor.stop()
+
+        elif "JOB_FINISHED" in data:
+            self.globals_dict["INPUT_QUEUE"].put("JOB_FINISHED")
+            self.transport.loseConnection()
 
         elif "CLUSTER_STATUS" in data:
             print("CLUSTER STATUS:", data)
@@ -179,18 +198,20 @@ class AchillesController(LineReceiver):
             print(data)
             self.command_interface()
 
-    def achilles_compute(self, achilles_config_path=None, response_mode=""):
+    def achilles_compute(
+        self, achilles_config_path=None, response_mode="", chunk_size=1
+    ):
         if __name__ != "__main__":
             import achilles
 
             achilles_function_path = (
                 abspath(dirname(achilles.__file__)) + "\\lineReceiver\\"
             )
-            print(achilles_function_path)
+            # print(achilles_function_path)
             path.append(achilles_function_path)
         else:
             achilles_function_path = abspath(dirname(__file__))
-            print(achilles_function_path)
+            # print(achilles_function_path)
             path.append(achilles_function_path)
 
         if self.achilles_function is None and self.achilles_args is None:
@@ -200,11 +221,13 @@ class AchillesController(LineReceiver):
                 achilles_callback,
             )
 
-            achilles_config_path = achilles_function_path + achilles_config_path
+            achilles_config_path = f"{achilles_function_path}\\{achilles_config_path}"
             with open(achilles_config_path, "r") as f:
                 achilles_config = yaml.load(f, Loader=yaml.Loader)
                 try:
-                    args_path = achilles_function_path + achilles_config["ARGS_PATH"]
+                    args_path = (
+                        f"{achilles_function_path}\\{achilles_config['ARGS_PATH']}"
+                    )
                 except KeyError:
                     args_path = None
                 try:
@@ -222,19 +245,6 @@ class AchillesController(LineReceiver):
             modules = None
             group = None
 
-        self.args_count = 0
-        try:
-            for arg in achilles_args(args_path):
-                self.args_count = self.args_count + 1
-        except TypeError:
-            try:
-                for arg in achilles_args:
-                    self.args_count = self.args_count + 1
-            except TypeError:
-                for arg in achilles_args():
-                    self.args_count = self.args_count + 1
-
-        print("ARGS COUNT:", self.args_count)
         self.response_mode = response_mode
 
         packet = dill.dumps(
@@ -242,11 +252,11 @@ class AchillesController(LineReceiver):
                 "FUNC": achilles_function,
                 "ARGS": achilles_args,
                 "ARGS_PATH": args_path,
-                "ARGS_COUNT": self.args_count,
                 "MODULES": modules,
                 "CALLBACK": achilles_callback,
                 "GROUP": group,
                 "RESPONSE_MODE": response_mode,
+                "CHUNK_SIZE": chunk_size,
             }
         )
         self.sendLine(packet)
@@ -290,85 +300,19 @@ class AchillesController(LineReceiver):
             achilles_config_path = input(
                 "Enter path to achilles_config.yaml to begin job:\t"
             )
+            self.response_mode = input(
+                f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
+            )
         else:
             achilles_config_path = None
-        response_mode = input(
-            f"Enter desired response mode (OBJECT, SQLITE, or STREAM):\t"
-        )
-        if response_mode in ["OBJECT", "SQLITE", "STREAM"]:
+        if self.response_mode in ["OBJECT", "SQLITE", "STREAM"]:
             self.achilles_compute(
-                achilles_config_path=achilles_config_path, response_mode=response_mode
+                achilles_config_path=achilles_config_path,
+                response_mode=self.response_mode,
+                chunk_size=self.chunk_size,
             )
         else:
             stderr.write(
                 "Sorry, that response mode is not recognized. Please choose OBJECT, SQLITE or STREAM.\n"
             )
             self.init_achilles_compute()
-
-
-def runAchillesController(
-    achilles_function=None, achilles_args=None, achilles_callback=None
-):
-    try:
-        if __name__ != "__main__":
-            import achilles
-
-            dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
-        else:
-            basedir = abspath(dirname(__file__))
-            dotenv_path = join(basedir, ".env")
-        load_dotenv(dotenv_path, override=True)
-        port = int(getenv("PORT"))
-        host = getenv("HOST")
-        username = getenv("USERNAME")
-        secret_key = getenv("SECRET_KEY")
-
-    except BaseException as e:
-        print(
-            f"No .env configuration file found ({e}). Follow the prompts below to generate one:"
-        )
-        host, port, username, secret_key = genConfig()
-
-    endpoint = TCP4ClientEndpoint(reactor, host, port)
-    d = connectProtocol(
-        endpoint,
-        AchillesController(
-            host,
-            port,
-            username,
-            secret_key,
-            achilles_function,
-            achilles_args,
-            achilles_callback,
-        ),
-    )
-
-    reactor.run()
-
-
-def genConfig():
-    if __name__ != "__main__":
-        import achilles
-
-        dotenv_path = abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
-    else:
-        basedir = abspath(dirname(__file__))
-        dotenv_path = join(basedir, ".env")
-    host = input("Enter HOST IP address:\t")
-    port = int(input("Enter HOST port to listen on:\t"))
-    username = input("Enter USERNAME to require for authentication:\t")
-    secret_key = getpass.getpass("Enter SECRET_KEY to require for authentication:\t")
-    with open(dotenv_path, "w") as config_file:
-        config_file.writelines(f"HOST={host}\n")
-        config_file.writelines(f"PORT={port}\n")
-        config_file.writelines(f"USERNAME='{username}'\n")
-        config_file.writelines(f"SECRET_KEY='{secret_key}'\n")
-        config_file.close()
-        print(
-            f"Successfully generated .env configuration file at {dotenv_path}.env. Use achilles_controller.genConfig() to overwrite."
-        )
-    return host, port, username, secret_key
-
-
-if __name__ == "__main__":
-    runAchillesController()
