@@ -2,11 +2,13 @@
 Distributed/parallel computing in modern Python based on the `multiprocessing.Pool` API (`map`, `imap`, `imap_unordered`).
 
 ### What is it?
-`achilles` is built using a server/node/controller architecture. The `achilles_server`, `achilles_node` and `achilles_controller` are designed to run cross-platform/cross-architecture and may be hosted on a single machine (for development) or deployed across heterogeneous resources.
+Using a server/node/controller architecture, `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the addition of `multiprocessing` -> https://www.python.org/dev/peps/pep-0371/).
 
-`achilles` is comparable to excellent Python packages like `pathos/pyina`, `Parallel Python` and `SCOOP`. Similar in some ways, different in others:
+The `achilles_server`, `achilles_node` and `achilles_controller` (dynamically generated `Twisted` reactors created by calling `map`, `imap` or `imap_unordered`) are designed to run cross-platform/cross-architectur. The server/node/controller may be hosted on a single machine (for development) or deployed across heterogeneous resources.
+
+`achilles` is comparable to excellent Python packages like `pathos/pyina`, `Parallel Python` and `SCOOP`, but different in certain ways:
 - Designed for developers familiar with the `multiprocessing` module in the standard library with simplicity and ease of use in mind.
-- In addition to the blocking `map` API that requires  developers to wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
+- In addition to the blocking `map` API that requires developers to wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
 - `achilles` allows for composable scalability and novel design patterns as:
     - Lists, lists of lists and generator functions are accepted as arguments.
         - TIP: Use generator functions together with `imap` or `imap_unordered` to perform distributed computation on arbitrarily large data.
@@ -21,9 +23,9 @@ Start an `achilles_server` listening for connections from `achilles_nodes` at a 
 
 Then simply import `map`, `imap`, and/or `imap_unordered` from `achilles_main` and use them dynamically in your own code.
 
-`map`, `imap` and `imap_unordered` will distribute your function to each `achilles_node` connected to the `achilles_server`. Then, the `achilles_server` will distribute arguments to each `achilles_node` (load balanced if the arguments' type is not already a list) which will then perform your function on the arguments using `multiprocess.Pool.map`.
+`map`, `imap` and `imap_unordered` will distribute your function to each `achilles_node` connected to the `achilles_server`. Then, the `achilles_server` will distribute arguments to each `achilles_node` (load balanced and made into a list of arguments if the arguments' type is not already a list) which will then perform your function on the arguments using `multiprocess.Pool.map`.
 
-Each `achilles_node` finishes its work, returns the results to the `achilles_server` and waits to receive another argument from it. This process is repeated until all of the arguments have been exhausted.
+Each `achilles_node` finishes its work, returns the results to the `achilles_server` and waits to receive another argument. This process is repeated until all of the arguments have been exhausted.
 
 1) `runAchillesServer(host=None, port=None, username=None, secret_key=None)` -> run on your local machine or on another machine connected to your network
 
@@ -84,12 +86,10 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
 3) Examples of how to use the 3 most commonly used `multiprocessing.Pool` methods in `achilles`:
     <br/>
     >> Note: `map`, `imap` and `imap_unordered` currently accept lists, lists of lists, and generator functions as `achilles_args`.
-    
-    >> Generator functions must yield an `args_counter` with each `arg` (i.e. `yield args_counter, arg` -> see `examples\square_nums` directory for an example of how to use).
                                                          
     >> Also note:  if there isn't already a `.env` configuration file in the `achilles` package directory, must use `genConfig(host, port, username, secret_key)` before using or include `host`, `port`, `username` and `secret_key` as arguments when using `map`, `imap`, `imap_unordered`.
     
-    1) `map(achilles_function, achilles_args, achilles_callback=None, chunk_size=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
+    1) `map(func, args, callback=None, chunksize=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
         `in:`
         ```python
        from achilles.lineReceiver.achilles_main import map
@@ -98,13 +98,10 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
            return arg ** 2
        
        def achilles_callback(result):
-           result_data = result["RESULT"]
-           for i in range(len(result_data)):
-               result_data[i] = result_data[i] ** 2
-           return result
+           return result ** 2
        
        if __name__ == "__main__":
-           results = map(achilles_function, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], achilles_callback, chunk_size=1)
+           results = map(achilles_function, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], achilles_callback, chunksize=1)
            print(results)
        ```
        <br/>
@@ -116,7 +113,7 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
        [[1, 16, 81, 256, 625, 1296, 2401, 4096], [6561, 10000]]
        ```
         <br/>
-   2) `imap(achilles_function, achilles_args, achilles_callback=None, chunk_size=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
+   2) `imap(func, args, callback=None, chunksize=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
         `in:`
         ```python
         from achilles.lineReceiver.achilles_main import imap
@@ -125,13 +122,10 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
           return arg ** 2 
       
       def achilles_callback(result):
-          result_data = result["RESULT"]
-          for i in range(len(result_data)):
-              result_data[i] = result_data[i] ** 2
-          return result
+          return result ** 2
       
       if __name__ == "__main__":
-          for result in imap(achilles_function, [1,2,3,4,5,6,7,8,9,10], achilles_callback, chunk_size=1):
+          for result in imap(achilles_function, [1,2,3,4,5,6,7,8,9,10], achilles_callback, chunksize=1):
               print(result)
         ```
       <br/>
@@ -145,7 +139,7 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
       ```
       <br/>
 
-     3) `imap_unordered(achilles_function, achilles_args, achilles_callback=None, chunk_size=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
+     3) `imap_unordered(func, args, callback=None, chunksize=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
      `in:`
         ```python
         from achilles.lineReceiver.achilles_main import imap_unordered
@@ -154,13 +148,10 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
             return arg ** 2
         
         def achilles_callback(result):
-            result_data = result["RESULT"]
-            for i in range(len(result_data)):
-                result_data[i] = result_data[i] ** 2
-            return result
+            return result ** 2
       
         if __name__ == "__main__":
-            for result in imap_unordered(achilles_function, [1,2,3,4,5,6,7,8,9,10], achilles_callback, chunk_size=1):
+            for result in imap_unordered(achilles_function, [1,2,3,4,5,6,7,8,9,10], achilles_callback, chunksize=1):
                 print(result)
         ```
         <br/>
@@ -196,21 +187,22 @@ from achilles.lineReceiver.achilles_main import killCluster
 # simply use the killCluster() command and verify your intent at the prompt
 # killCluster() will search for an .env configuration file in the achilles package's directory
 # if it does not exist, specify host, port, username and secret_key as arguments
+# a command is sent to all connected achilles_nodes to stop the Twisted reactor and exit() the process
 
 killCluster()
 ```
 
 #### Caveats/Things to know
-- `achilles_node`s use all of the CPU cores available on the host machine to perform `multiprocess.Pool.map` (`pool = multiprocess.Pool(multiprocess.cpu_count()`).
-- The `achilles_server` is designed to handle one job at a time for now (TO DO: add fault tolerance and ability to handle multiple jobs).
+- `achilles_node`s use all of the CPU cores available on the host machine to perform `multiprocess.Pool.map` (`pool = multiprocess.Pool(multiprocess.cpu_count())`).
+- `achilles` leaves it up to the developer to ensure that the correct packages are installed on `achilles_node`s to perform the function distributed by the `achilles_server` on behalf of the `achilles_controller`. Recommended solution is to SSH into each machine and `pip install` a `requirements.txt` file.
+- The `achilles_server` is currently designed to handle one job at a time (TO DO: add fault tolerance and ability to handle multiple jobs).
 - `achilles_callback_error` has yet to be implemented, so detailed information regarding errors can only be gleaned from the interpreter used to launch the `achilles_server`, `achilles_node` or `achilles_controller`. Deploying the server/node/controller on a single machine is recommended for development.
-- Generator functions used to define args must yield an `args_counter` along with the `arg` (i.e. `yield args_counter, arg` -> see `examples\square_nums`) in the current version of `achilles`.
-- `achilles` performs load balancing at runtime and assigns `achilles_node`s arguments by `cpu_count` * `chunk_size`.
-    - Default `chunk_size` is 1.
-    - Increasing the `chunk_size` is an easy way to speed up computation and reduce the amount of time spent transferring data between the server/node/controller.
-- If your arguments are already lists, the `chunk_size` argument is not used.
+- `achilles` performs load balancing at runtime and assigns `achilles_node`s arguments by `cpu_count` * `chunksize`.
+    - Default `chunksize` is 1.
+    - Increasing the `chunksize` is an easy way to speed up computation and reduce the amount of time spent transferring data between the server/node/controller.
+- If your arguments are already lists, the `chunksize` argument is not used.
     - Instead, one argument/list will be distributed to the connected `achilles_node`s at a time.
-- If your arguments are load balanced, the results returned are contained in lists of length `achilles_node's cpu_count` *  `chunk_size`.
+- If your arguments are load balanced, the results returned are contained in lists of length `achilles_node's cpu_count` *  `chunksize`.
     - `map`:
         - Final result of `map` is an ordered list of load balanced lists (the final result is not flattened).
     - `imap`:

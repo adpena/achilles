@@ -33,7 +33,7 @@ class AchillesController(LineReceiver):
         achilles_callback=None,
         response_mode="OBJECT",
         globals_dict=None,
-        chunk_size=1,
+        chunksize=1,
         command=None,
     ):
 
@@ -49,7 +49,7 @@ class AchillesController(LineReceiver):
         self.achilles_args = achilles_args
         self.achilles_callback = achilles_callback
         self.globals_dict = globals_dict
-        self.chunk_size = chunk_size
+        self.chunksize = chunksize
         self.command = command
 
     def lineReceived(self, data):
@@ -73,10 +73,10 @@ class AchillesController(LineReceiver):
                 print(
                     f"ALERT: Connection to achilles_server at {self.HOST}:{self.PORT} and authentication successful.\n"
                 )
-                if self.achilles_function is None and self.achilles_args is None:
-                    self.command_interface()
-                elif self.command == "KILL_CLUSTER":
+                if self.command == "KILL_CLUSTER":
                     self.kill_cluster()
+                elif self.achilles_function is None and self.achilles_args is None:
+                    self.command_interface()
                 else:
                     self.init_achilles_compute()
             else:
@@ -102,7 +102,7 @@ class AchillesController(LineReceiver):
                 # If STREAM is your chosen response mode, handle results packets here.
                 print(data)
             else:
-                self.globals_dict["INPUT_QUEUE"].put(data)
+                self.globals_dict["OUTPUT_QUEUE"].put(data)
 
         elif "RESULT" in data and self.response_mode == "SQLITE":
             if self.sqlite_db_created is False:
@@ -166,7 +166,7 @@ class AchillesController(LineReceiver):
                             instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {json.dumps(data['RESULT'][i])})"""
                             # print(instruction)
                             c.execute(instruction)
-                            self.abs_counter + self.abs_counter + 1
+                            self.abs_counter = self.abs_counter + 1
 
                 c.close()
 
@@ -176,12 +176,17 @@ class AchillesController(LineReceiver):
                 self.command_interface()
             else:
                 # print("FINAL RESULT:", data["FINAL_RESULT"])
-                self.globals_dict["FINAL_RESULT"] = data["FINAL_RESULT"]
+                self.globals_dict["OUTPUT_QUEUE"].put(data["FINAL_RESULT"])
                 self.transport.loseConnection()
                 reactor.stop()
 
         elif "JOB_FINISHED" in data:
-            self.globals_dict["INPUT_QUEUE"].put("JOB_FINISHED")
+            if self.globals_dict is not None:
+                self.globals_dict["OUTPUT_QUEUE"].put("JOB_FINISHED")
+            else:
+                self.transport.loseConnection()
+                reactor.crash()
+
             self.transport.loseConnection()
 
         elif "CLUSTER_STATUS" in data:
@@ -190,16 +195,16 @@ class AchillesController(LineReceiver):
 
         elif "KILL_NODE" in data:
             stderr.write(
-                "ALERT: All achilles_nodes have been disconnected from the cluster. The achilles_server is running and accepting connections."
+                "ALERT: All achilles_nodes have been disconnected from the cluster. The achilles_server is still running and accepting connections."
             )
-            reactor.stop()
+            reactor.crash()
 
         else:
             print(data)
             self.command_interface()
 
     def achilles_compute(
-        self, achilles_config_path=None, response_mode="", chunk_size=1
+        self, achilles_config_path=None, response_mode="", chunksize=1
     ):
         if __name__ != "__main__":
             import achilles
@@ -256,7 +261,7 @@ class AchillesController(LineReceiver):
                 "CALLBACK": achilles_callback,
                 "GROUP": group,
                 "RESPONSE_MODE": response_mode,
-                "CHUNK_SIZE": chunk_size,
+                "CHUNKSIZE": chunksize,
             }
         )
         self.sendLine(packet)
@@ -268,13 +273,13 @@ class AchillesController(LineReceiver):
 
     def kill_cluster(self):
         confirm_kill_cluster = input(
-            "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed."
+            "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed:\t"
         )
         if confirm_kill_cluster == "YES":
             packet = dill.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
             self.sendLine(packet)
         else:
-            stderr.write("ALERT: kill_cluster aborted.")
+            stderr.write("ALERT: kill_cluster aborted.\n")
             self.command_interface()
 
     def command_interface(self):
@@ -309,7 +314,7 @@ class AchillesController(LineReceiver):
             self.achilles_compute(
                 achilles_config_path=achilles_config_path,
                 response_mode=self.response_mode,
-                chunk_size=self.chunk_size,
+                chunksize=self.chunksize,
             )
         else:
             stderr.write(

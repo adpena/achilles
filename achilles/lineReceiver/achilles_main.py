@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from os import getenv
 from os.path import abspath, dirname, join
 import getpass
+import time
 
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
@@ -22,7 +23,7 @@ def runAchillesController(
     username=None,
     secret_key=None,
     globals_dict=None,
-    chunk_size=1,
+    chunksize=1,
     command=None,
     TCP4ClientEndpoint=TCP4ClientEndpoint,
     reactor=reactor,
@@ -78,7 +79,7 @@ def runAchillesController(
             achilles_callback,
             response_mode,
             globals_dict,
-            chunk_size,
+            chunksize,
             command,
         ),
     )
@@ -120,47 +121,27 @@ def genConfig(host=None, port=None, username=None, secret_key=None):
     return host, port, username, secret_key
 
 
-def readInputQueue(input_queue, output_queue, callback=None):
-    while input_queue:
-        result = input_queue.get()
-        if result != "JOB_FINISHED":
-            if callback is not None:
-                # print("RESULT", result)
-                callback_result = callback(result)
-                # print("CR", callback_result)
-                output_queue.put(callback_result)
-            else:
-                # print(result)
-                output_queue.put(result)
-        else:
-            output_queue.put(result)
-            break
-
-
 def imap_unordered(
-    achilles_function,
-    achilles_args,
-    achilles_callback=None,
+    func,
+    args,
+    callback=None,
     response_mode="STREAM",
     host=None,
     port=None,
     username=None,
     secret_key=None,
-    chunk_size=1,
+    chunksize=1,
     globals_dict=None,
     runAchillesController=runAchillesController,
     abspath=abspath,
     dirname=dirname,
     multiprocess=multiprocess,
-    readInputQueue=readInputQueue,
 ):
 
     if globals_dict is None:
         manager = multiprocess.Manager()
 
         globals_dict = {
-            "FINAL_RESULT": None,
-            "INPUT_QUEUE": manager.Queue(),
             "OUTPUT_QUEUE": manager.Queue(),
         }
     if (
@@ -193,68 +174,54 @@ def imap_unordered(
             username = username
             secret_key = secret_key
 
-    p = multiprocess.Process(
-        target=readInputQueue,
-        args=(
-            globals_dict["INPUT_QUEUE"],
-            globals_dict["OUTPUT_QUEUE"],
-            achilles_callback,
-        ),
-    )
-    p.start()
-    # print('Queues started, readInputQueue initiated.')
     a = multiprocess.Process(
         target=runAchillesController,
         args=(
-            achilles_function,
-            achilles_args,
-            achilles_callback,
+            func,
+            args,
+            callback,
             response_mode,
             host,
             port,
             username,
             secret_key,
             globals_dict,
-            chunk_size,
+            chunksize,
         ),
     )
 
     a.start()
-    while globals_dict["OUTPUT_QUEUE"].empty():
+    while True:
         result = globals_dict["OUTPUT_QUEUE"].get()
         if result != "JOB_FINISHED":
             yield result
         else:
             break
 
-    p.join()
     a.terminate()
 
 
 def imap(
-    achilles_function,
-    achilles_args,
-    achilles_callback=None,
+    func,
+    args,
+    callback=None,
     response_mode="STREAM",
     host=None,
     port=None,
     username=None,
     secret_key=None,
-    chunk_size=1,
+    chunksize=1,
     globals_dict=None,
     runAchillesController=runAchillesController,
     abspath=abspath,
     dirname=dirname,
     multiprocess=multiprocess,
-    readInputQueue=readInputQueue,
 ):
 
     if globals_dict is None:
         manager = multiprocess.Manager()
 
         globals_dict = {
-            "FINAL_RESULT": None,
-            "INPUT_QUEUE": manager.Queue(),
             "OUTPUT_QUEUE": manager.Queue(),
         }
     if (
@@ -286,29 +253,19 @@ def imap(
             username = username
             secret_key = secret_key
 
-    p = multiprocess.Process(
-        target=readInputQueue,
-        args=(
-            globals_dict["INPUT_QUEUE"],
-            globals_dict["OUTPUT_QUEUE"],
-            achilles_callback,
-        ),
-    )
-    p.start()
-    # print('Queues started, readInputQueue initiated.')
     a = multiprocess.Process(
         target=runAchillesController,
         args=(
-            achilles_function,
-            achilles_args,
-            achilles_callback,
+            func,
+            args,
+            callback,
             response_mode,
             host,
             port,
             username,
             secret_key,
             globals_dict,
-            chunk_size,
+            chunksize,
         ),
     )
 
@@ -317,14 +274,13 @@ def imap(
     expected_args_counter = 0
     result_buffer = []
     try:
-        test_arg_counter, test_arg = next(achilles_args())
+        test_arg = next(args())
         test_arg_type = type(test_arg)
     except TypeError:
-        test_arg = next(iter(achilles_args))
+        test_arg = next(iter(args))
         test_arg_type = type(test_arg)
     while True:
         result = globals_dict["OUTPUT_QUEUE"].get()
-        # print(result)
         if result != "JOB_FINISHED":
             if test_arg_type is not list:
                 if sent_first_arg is False:
@@ -398,7 +354,6 @@ def imap(
             else:
                 break
 
-    p.join()
     a.terminate()
 
 
@@ -412,11 +367,11 @@ def getResult(result_buffer, expected_args_counter):
 
 
 def map(
-    achilles_function,
-    achilles_args,
-    achilles_callback=None,
+    func,
+    args,
+    callback=None,
     response_mode="OBJECT",
-    chunk_size=1,
+    chunksize=1,
     globals_dict=None,
     host=None,
     port=None,
@@ -426,15 +381,13 @@ def map(
     abspath=abspath,
     dirname=dirname,
     multiprocess=multiprocess,
-    readInputQueue=readInputQueue,
 ):
+
 
     if globals_dict is None:
         manager = multiprocess.Manager()
 
         globals_dict = {
-            "FINAL_RESULT": None,
-            "INPUT_QUEUE": manager.Queue(),
             "OUTPUT_QUEUE": manager.Queue(),
         }
     if (
@@ -443,37 +396,62 @@ def map(
         and username is not None
         and secret_key is not None
     ):
-        runAchillesController(
-            achilles_function=achilles_function,
-            achilles_args=achilles_args,
-            achilles_callback=achilles_callback,
-            response_mode=response_mode,
-            globals_dict=globals_dict,
-            chunk_size=chunk_size,
-            host=host,
-            port=port,
-            username=username,
-            secret_key=secret_key,
-        )
-    else:
-        runAchillesController(
-            achilles_function=achilles_function,
-            achilles_args=achilles_args,
-            achilles_callback=achilles_callback,
-            response_mode=response_mode,
-            globals_dict=globals_dict,
-            chunk_size=chunk_size,
-        )
+        pass
 
-    return globals_dict["FINAL_RESULT"]
+    else:
+        try:
+            if __name__ != "__main__":
+                import achilles
+
+                dotenv_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                )
+            else:
+                basedir = abspath(dirname(__file__))
+                dotenv_path = join(basedir, ".env")
+            load_dotenv(dotenv_path, override=True)
+            port = int(getenv("PORT"))
+            host = getenv("HOST")
+            username = getenv("USERNAME")
+            secret_key = getenv("SECRET_KEY")
+        except (KeyError, NameError):
+            host = host
+            port = port
+            username = username
+            secret_key = secret_key
+
+    a = multiprocess.Process(
+        target=runAchillesController,
+        args=(
+            func,
+            args,
+            callback,
+            response_mode,
+            host,
+            port,
+            username,
+            secret_key,
+            globals_dict,
+            chunksize,
+        ),
+    )
+
+    a.start()
+    while True:
+        final_result = globals_dict["OUTPUT_QUEUE"].get()
+        if final_result is not None:
+            # print("FINAL_RESULT:", final_result)
+            a.terminate()
+            return final_result
+        else:
+            # print(final_result)
+            time.sleep(1)
 
 
 def setupGlobals():
     manager = multiprocess.Manager()
 
     globals_dict = {
-        "FINAL_RESULT": None,
-        "INPUT_QUEUE": manager.Queue(),
         "OUTPUT_QUEUE": manager.Queue(),
     }
     return globals_dict
@@ -505,72 +483,6 @@ def killCluster(
         runAchillesController(command=command)
 
 
-def achilles_args():
-    import ast
-
-    args_counter = 0
-    with open(
-        "C:\\Users\\Shadow\\Documents\\GitHub\\achilles\\achilles\\lineReceiver\\achilles_args.txt",
-        "r",
-    ) as args:
-        first_arg = args.readline()
-        if type(ast.literal_eval(first_arg)) is list:
-            yield args_counter, ast.literal_eval(first_arg)
-            args_counter = args_counter + 1
-            for arg in args:
-                yield args_counter, ast.literal_eval(arg)
-                args_counter = args_counter + 1
-        else:
-            yield args_counter, int(first_arg)
-            args_counter = args_counter + 1
-            for arg in args:
-                yield args_counter, int(arg)
-                args_counter = args_counter + 1
-
-
-def achilles_function(arg):
-    return arg ** 2
-
-
-def achilles_callback(result):
-    result_data = result["RESULT"]
-    for i in range(len(result_data)):
-        result_data[i] = result_data[i] ** 2
-    return result
-
-
 if __name__ == "__main__":
 
-    globals_dict = setupGlobals()
-
-    # Non-blocking map function imap_unordered().
-    for result in imap_unordered(
-        achilles_function,
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        achilles_callback,
-        globals_dict=globals_dict,
-        chunk_size=25,
-    ):
-        print(result)
-
-    # Non-blocking map function imap().
-    for result in imap(
-        achilles_function,
-        [x for x in range(1000)],
-        achilles_callback,
-        globals_dict=globals_dict,
-        chunk_size=25,
-    ):
-        print(result)
-
-    # Blocking map function using map().
-    results = map(
-        achilles_function,
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-        achilles_callback,
-        globals_dict=globals_dict,
-        chunk_size=1,
-    )
-    print("FINAL RESULT:", results)
-    for result in results:
-        print(result)
+    runAchillesController()

@@ -16,7 +16,7 @@ from twisted.internet import reactor
 
 
 class AchillesNode(LineReceiver):
-    MAX_LENGTH = 999999
+    MAX_LENGTH = 9999999999999999
 
     def __init__(self, host, port):
 
@@ -25,7 +25,7 @@ class AchillesNode(LineReceiver):
         self.connected = False
         self.client_id = -1
         self.func = None
-        self.args = []
+        self.callback = None
 
     def lineReceived(self, data):
         self.handleData(data)
@@ -53,6 +53,8 @@ class AchillesNode(LineReceiver):
         elif "START_JOB" in data:
             func = data["FUNC"]
             self.func = func
+            callback = data["CALLBACK"]
+            self.callback = callback
             packet = dill.dumps({"CLIENT_ID": self.client_id, "READY": True})
             # print("START_JOB RESPONSE:", packet)
             self.sendLine(packet)
@@ -60,6 +62,10 @@ class AchillesNode(LineReceiver):
             # print("ARG:", data["ARG"])
             with Pool(cpu_count()) as p:
                 result = p.map(self.func, data["ARG"])
+                if self.callback is not None:
+                    result = p.map(self.callback, result)
+                else:
+                    pass
                 p.close()
             packet = dill.dumps(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}

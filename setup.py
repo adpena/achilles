@@ -5,10 +5,10 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="achilles",
-    version="0.0.180",
+    version="0.0.181",
     author="Alejandro Peña",
     author_email="adpena@gmail.com",
-    description="Distributed computing for everyone in modern Python.",
+    description="Distributed/parallel computing in modern Python based on the multiprocessing.Pool API (map, imap, imap_unordered).",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/adpena/achilles",

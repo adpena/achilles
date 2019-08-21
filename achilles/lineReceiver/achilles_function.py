@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 
-import ast
-
 # from requests import get
 # from html2text import html2text
 
 
 def achilles_args(args_path):
-    args_counter = -1
+    import ast
+
     with open(args_path, "r") as args:
         for arg in args:
-            args_counter = args_counter + 1
-            yield args_counter, ast.literal_eval(arg)
+            arg = arg.strip()
+            print(ast.literal_eval(arg))
+            for a in ast.literal_eval(arg):
+                print(a)
+            yield ast.literal_eval(arg)
 
 
 def achilles_function(arg):
@@ -19,7 +21,7 @@ def achilles_function(arg):
 
 
 def achilles_callback(result):
-    pass
+    return result ** 2
 
 
 """def achilles_function2(arg):

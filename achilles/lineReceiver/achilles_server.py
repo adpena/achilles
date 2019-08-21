@@ -96,9 +96,9 @@ class AchillesServer(LineReceiver):
             callback = data["CALLBACK"]
             group = data["GROUP"]
             response_mode = data["RESPONSE_MODE"]
-            chunk_size = data["CHUNK_SIZE"]
+            chunksize = data["CHUNKSIZE"]
             self.factory.response_mode = response_mode
-            self.factory.chunk_size = chunk_size
+            self.factory.chunksize = chunksize
 
             self.startJob(func, args, args_path, modules, callback, group)
         elif self.AUTHENTICATED is False and "READY" in data:
@@ -112,33 +112,22 @@ class AchillesServer(LineReceiver):
             # print("RESULTS PACKET:", data)
             if self.factory.response_mode == "OBJECT":
                 self.factory.results.append(data)
+                try:
+                    loadBalance(self.factory.args, self)
+                except StopIteration:
+                    handleStopIteration(response_mode="OBJECT", worker=self)
 
-                if isinstance(self.factory.args, GeneratorType):
-                    try:
-                        loadBalanceGen(self.factory.args, self)
-                    except StopIteration:
-                        handleStopIteration(response_mode="OBJECT", worker=self)
-                else:
-                    try:
-                        loadBalanceList(self.factory.args, self)
-                    except StopIteration:
-                        handleStopIteration(response_mode="OBJECT", worker=self)
 
             elif (
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
                 self.factory.achilles_controller.sendLine(dill.dumps(data))
-                if isinstance(self.factory.args, GeneratorType):
-                    try:
-                        loadBalanceGen(self.factory.args, self)
-                    except StopIteration:
-                        handleStopIteration(response_mode="STREAM", worker=self)
-                else:
-                    try:
-                        loadBalanceList(self.factory.args, self)
-                    except StopIteration:
-                        handleStopIteration(response_mode="STREAM", worker=self)
+                try:
+                    loadBalance(self.factory.args, self)
+                except StopIteration:
+                    handleStopIteration(response_mode="STREAM", worker=self)
+
 
         elif "GET_CLUSTER_STATUS" in data and self.AUTHENTICATED is True:
             packet = {"CLUSTER_STATUS": True}
@@ -190,7 +179,7 @@ class AchillesServer(LineReceiver):
         workers_list = []
         cpu_total = 0
         try:
-            self.factory.args = args(args_path)
+            self.factory.args = iter(args(args_path))
         except TypeError:
             try:
                 self.factory.args = iter(args)
@@ -205,28 +194,21 @@ class AchillesServer(LineReceiver):
             if client.AUTHENTICATED is False:
                 workers_list.append(client)
         print("IP LIST:", ip_list)
-        print("CPU TOTAL", cpu_total)
+        print("CPU TOTAL:", cpu_total)
         print("CLIENTS CONNECTED:", self.factory.numProtocols)
         self.factory.ipMap = ip_map
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
         for client in self.factory.workers:
-            client.sendLine(dill.dumps({"START_JOB": True, "FUNC": func}))
+            client.sendLine(dill.dumps({"START_JOB": True, "FUNC": func, "CALLBACK": callback}))
         self.factory.achilles_controller.sendLine(dill.dumps({"PROCEED": True}))
 
     def proceedWithJob(self):
         for worker in self.factory.workers:
-
-            if isinstance(self.factory.args, GeneratorType):
-                try:
-                    loadBalanceGen(self.factory.args, worker)
-                except StopIteration:
-                    handleStopIteration(self.factory.response_mode, self)
-            else:
-                try:
-                    loadBalanceList(self.factory.args, worker)
-                except StopIteration:
-                    handleStopIteration(self.factory.response_mode, self)
+            try:
+                loadBalance(self.factory.args, worker)
+            except StopIteration:
+                handleStopIteration(self.factory.response_mode, self)
 
 
 def handleStopIteration(response_mode, worker):
@@ -266,30 +248,7 @@ def handleStopIteration(response_mode, worker):
             )
 
 
-def loadBalanceGen(args_generator, worker):
-    test_args_counter, test_arg = next(args_generator)
-    sent_packet = False
-    if type(test_arg) is list:
-        packet = dill.dumps({"ARG": test_arg, "ARGS_COUNTER": test_args_counter})
-        worker.sendLine(packet)
-        # print(f"Packet with arg {test_args_counter} sent to {worker.CLIENT_ID}")
-    else:
-        cpu_count = int(worker.CPU_COUNT)
-        packet = {"ARG": [test_arg], "ARGS_COUNTER": test_args_counter}
-        balancer = worker.factory.chunk_size * cpu_count - 1
-        for i in range(balancer):
-            try:
-                packet["ARG"].append(next(args_generator)[1])
-            except StopIteration:
-                worker.sendLine(dill.dumps(packet))
-                sent_packet = True
-                break
-        if sent_packet is not True:
-            worker.sendLine(dill.dumps(packet))
-        # print(f"Packet with arg {test_args_counter} sent to {worker.CLIENT_ID}")
-
-
-def loadBalanceList(args_iterable, worker):
+def loadBalance(args_iterable, worker):
     test_arg = next(args_iterable)
     if type(test_arg) is list:
         packet = dill.dumps(
@@ -305,7 +264,7 @@ def loadBalanceList(args_iterable, worker):
         args_counter = worker.factory.args_counter
         packet = {"ARG": [test_arg], "ARGS_COUNTER": args_counter}
         sent_packet = False
-        balancer = worker.factory.chunk_size * cpu_count - 1
+        balancer = worker.factory.chunksize * cpu_count - 1
         for i in range(balancer):
             try:
                 packet["ARG"].append(next(worker.factory.args))
@@ -352,13 +311,8 @@ class AchillesServerFactory(Factory):
     def gatherResults(self):
         final_results = []
         self.results = sorted(self.results, key=lambda k: k["ARGS_COUNTER"])
-        if self.callback is None:
-            for result in self.results:
-                final_results.append(result["RESULT"])
-        else:
-            for result in self.results:
-                result_dict = self.callback(result)
-                final_results.append(result_dict["RESULT"])
+        for result in self.results:
+            final_results.append(result["RESULT"])
         return final_results
 
 
