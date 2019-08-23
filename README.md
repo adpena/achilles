@@ -2,17 +2,17 @@
 Distributed/parallel computing in modern Python based on the `multiprocessing.Pool` API (`map`, `imap`, `imap_unordered`).
 
 ### What is it?
-Using a server/node/controller architecture, `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the addition of `multiprocessing` -> https://www.python.org/dev/peps/pep-0371/).
+Using a server/node/controller architecture, `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the intent behind adding `multiprocessing` to the standard library -> https://www.python.org/dev/peps/pep-0371/).
 
-The `achilles_server`, `achilles_node` and `achilles_controller` (dynamically generated `Twisted` reactors created by calling `map`, `imap` or `imap_unordered`) are designed to run cross-platform/cross-architectur. The server/node/controller may be hosted on a single machine (for development) or deployed across heterogeneous resources.
+The `achilles_server`, `achilles_node` and `achilles_controller` are designed to run cross-platform/cross-architecture. The server/node/controller may be hosted on a single machine (for development) or deployed across heterogeneous resources.
 
 `achilles` is comparable to excellent Python packages like `pathos/pyina`, `Parallel Python` and `SCOOP`, but different in certain ways:
 - Designed for developers familiar with the `multiprocessing` module in the standard library with simplicity and ease of use in mind.
-- In addition to the blocking `map` API that requires developers to wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
+- In addition to the blocking `map` API which requires that developers wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
 - `achilles` allows for composable scalability and novel design patterns as:
     - Lists, lists of lists and generator functions are accepted as arguments.
         - TIP: Use generator functions together with `imap` or `imap_unordered` to perform distributed computation on arbitrarily large data.
-    - The `dill` serializer is used to transfer data between the server/node/controller and `multiprocess` (fork of `multiprocessing` that uses the `dill` serializer instead of `pickle`) is used to perform `Pool.map` on the `achilles_nodes`, so developers are  freed from some of the constraints of the `pickle` serializer.
+    - The `dill` serializer is used to transfer data between the server/node/controller and `multiprocess` (fork of `multiprocessing` that uses the `dill` serializer instead of `pickle`) is used to perform `Pool.map` on the `achilles_nodes`, so developers are freed from some of the constraints of the `pickle` serializer.
     <br/>
 
 #### Install
@@ -194,9 +194,10 @@ killCluster()
 
 #### Caveats/Things to know
 - `achilles_node`s use all of the CPU cores available on the host machine to perform `multiprocess.Pool.map` (`pool = multiprocess.Pool(multiprocess.cpu_count())`).
-- `achilles` leaves it up to the developer to ensure that the correct packages are installed on `achilles_node`s to perform the function distributed by the `achilles_server` on behalf of the `achilles_controller`. Recommended solution is to SSH into each machine and `pip install` a `requirements.txt` file.
+- `achilles` leaves it up to the developer to ensure that the correct packages are installed on `achilles_node`s to perform the function distributed by the `achilles_server` on behalf of the `achilles_controller`. Current recommended solution is to SSH into each machine and `pip install` a `requirements.txt` file.
+- All import statements required by the developer's function, arguments and callback must be included in the definition of the function.
 - The `achilles_server` is currently designed to handle one job at a time (TO DO: add fault tolerance and ability to handle multiple jobs).
-- `achilles_callback_error` has yet to be implemented, so detailed information regarding errors can only be gleaned from the interpreter used to launch the `achilles_server`, `achilles_node` or `achilles_controller`. Deploying the server/node/controller on a single machine is recommended for development.
+- `callback_error` argument has yet to be implemented, so detailed information regarding errors can only be gleaned from the interpreter used to launch the `achilles_server`, `achilles_node` or `achilles_controller`. Deploying the server/node/controller on a single machine is recommended for development.
 - `achilles` performs load balancing at runtime and assigns `achilles_node`s arguments by `cpu_count` * `chunksize`.
     - Default `chunksize` is 1.
     - Increasing the `chunksize` is an easy way to speed up computation and reduce the amount of time spent transferring data between the server/node/controller.
@@ -210,8 +211,8 @@ killCluster()
             - `RESULT`: load balanced list of results.
             - `ARGS_COUNTER`: index of first argument (0-indexed).
          - Results are ordered.
-             - The first result will correspond to the next result after the last result in the preceeding results packet's list of results.
-             - Likely to be slower than `immap_unordered` due to `achilles_controller` yielding ordered results. `imap_unordered` (see below) yields results as they are received, while `imap` yields results as they are received only if the argument's `ARGS_COUNTER` is expected based on the length of the `RESULT` list in the preceeding results packet. Otherwise, the results packet is added to a `result_buffer` and the `result_buffer` is checked for the results packet with the expected `ARGS_COUNTER`. If it is not found, `achilles_controller` will not yield results until a results packet with the expected `ARGS_COUNTER` is received.
+             - The first result will correspond to the next result after the last result in the preceding results packet's list of results.
+             - Likely to be slower than `immap_unordered` due to `achilles_controller` yielding ordered results. `imap_unordered` (see below) yields results as they are received, while `imap` yields results as they are received only if the argument's `ARGS_COUNTER` is expected based on the length of the `RESULT` list in the preceding results packet. Otherwise, a `result_buffer` is checked for the results packet with the expected `ARGS_COUNTER` and the current results packet is added to the `result_buffer`. If it is not found, `achilles_controller` will not yield results until a results packet with the expected `ARGS_COUNTER` is received.
     - `imap_unordered`:
         - Results are returned as computation is finished in dictionaries that include the following keys:
             - `RESULT`: load balanced list of results.

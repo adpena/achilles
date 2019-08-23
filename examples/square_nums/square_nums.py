@@ -29,9 +29,10 @@ def achilles_callback(result):
 
 if __name__ == "__main__":
 
+    # necessary if you're going to run multiple jobs sequentially
     globals_dict = setupGlobals()
 
-    # Non-blocking, based on multiprocessing.Pool.imap_unordered().
+    # streaming unordered results, based on multiprocessing.Pool.imap_unordered()
     for result in imap_unordered(
         achilles_function,
         achilles_args,
@@ -41,17 +42,17 @@ if __name__ == "__main__":
     ):
         print(result)
 
-    # Non-blocking, based on multiprocessing.Pool.imap().
+    # streaming ordered results, based on multiprocessing.Pool.imap()
     for result in imap(
         achilles_function,
         list([x for x in range(500)]),
         achilles_callback,
         globals_dict=globals_dict,
-        chunksize=25,
+        chunksize=5,
     ):
         print(result)
 
-    # Blocking, based on multiprocessing.Pool.map().
+    # blocking on final results, based on multiprocessing.Pool.map()
     results = map(
         achilles_function,
         achilles_args,
@@ -61,4 +62,5 @@ if __name__ == "__main__":
     )
     print("FINAL RESULT:", results)
 
+    # presents user with CLI seeking verification of intent to kill the achilles cluster
     killCluster()
