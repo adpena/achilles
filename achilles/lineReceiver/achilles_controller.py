@@ -35,6 +35,7 @@ class AchillesController(LineReceiver):
         globals_dict=None,
         chunksize=1,
         command=None,
+        command_verified=False,
     ):
 
         self.HOST = host  # The server's hostname or IP address
@@ -51,6 +52,7 @@ class AchillesController(LineReceiver):
         self.globals_dict = globals_dict
         self.chunksize = chunksize
         self.command = command
+        self.command_verified = command_verified
 
     def lineReceived(self, data):
         data = dill.loads(data)
@@ -272,15 +274,19 @@ class AchillesController(LineReceiver):
         print("ALERT: Requested cluster status.")
 
     def kill_cluster(self):
-        confirm_kill_cluster = input(
-            "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed:\t"
-        )
-        if confirm_kill_cluster == "YES":
+        if self.command_verified is True:
             packet = dill.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
             self.sendLine(packet)
         else:
-            stderr.write("ALERT: kill_cluster aborted.\n")
-            self.command_interface()
+            confirm_kill_cluster = input(
+                "WARNING: Are you absolutely sure that you want to kill the cluster? Enter YES to proceed:\t"
+            )
+            if confirm_kill_cluster == "YES":
+                packet = dill.dumps({"KILL_CLUSTER": "KILL_CLUSTER"})
+                self.sendLine(packet)
+            else:
+                stderr.write("ALERT: kill_cluster aborted.\n")
+                self.command_interface()
 
     def command_interface(self):
         command = input("Achilles cluster is ready to accept commands:\t")

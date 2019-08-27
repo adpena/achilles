@@ -25,6 +25,7 @@ def runAchillesController(
     globals_dict=None,
     chunksize=1,
     command=None,
+    command_verified=False,
     TCP4ClientEndpoint=TCP4ClientEndpoint,
     reactor=reactor,
     connectProtocol=connectProtocol,
@@ -81,6 +82,7 @@ def runAchillesController(
             globals_dict,
             chunksize,
             command,
+            command_verified,
         ),
     )
 
@@ -454,6 +456,7 @@ def killCluster(
     port=None,
     username=None,
     secret_key=None,
+    command_verified=False,
     runAchillesController=runAchillesController,
 ):
 
@@ -469,11 +472,11 @@ def killCluster(
             port=port,
             username=username,
             secret_key=secret_key,
+            command_verified=command_verified,
         )
     else:
-        runAchillesController(command=command)
+        runAchillesController(command=command, command_verified=command_verified)
 
 
 if __name__ == "__main__":
-
     runAchillesController()

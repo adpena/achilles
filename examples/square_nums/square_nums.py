@@ -44,17 +44,17 @@ if __name__ == "__main__":
         achilles_args,
         achilles_callback,
         globals_dict=globals_dict,
-        chunksize=5,
+        chunksize=50,
     ):
         print(result)
 
     # streaming ordered results, based on multiprocessing.Pool.imap()
     for result in imap(
         achilles_function,
-        list([x for x in range(500)]),
+        iter([x for x in range(500)]),
         achilles_callback,
         globals_dict=globals_dict,
-        chunksize=5,
+        chunksize=50,
     ):
         print(result)
 
@@ -64,9 +64,11 @@ if __name__ == "__main__":
         achilles_args,
         achilles_callback,
         globals_dict=globals_dict,
-        chunksize=1,
+        chunksize=50,
     )
     print("FINAL RESULT:", results)
 
-    # presents user with CLI seeking verification of intent to kill the achilles cluster
-    killCluster()
+    # killCluster() presents user with CLI seeking verification of intent to kill the achilles cluster
+    # killCluster(command_verified=True) proceeds without presenting user with input() interface
+
+    # killCluster(command_verified=True)

@@ -1,8 +1,10 @@
 # `achilles`
 Distributed/parallel computing in modern Python based on the `multiprocessing.Pool` API (`map`, `imap`, `imap_unordered`).
 
-### What is it?
-Using a server/node/controller architecture, `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the intent behind adding `multiprocessing` to the standard library -> https://www.python.org/dev/peps/pep-0371/).
+## What is it?
+The purpose of `achilles` is to make distributed/parallel computing as easy as possible by limiting the required configuration, hiding the details (server/node/controller architecture) and exposing a simple interface based on the popular `multiprocessing.Pool` API.
+
+> `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the intent behind adding `multiprocessing` to the standard library -> https://www.python.org/dev/peps/pep-0371/) using a server/node/controller architecture.
 
 The `achilles_server`, `achilles_node` and `achilles_controller` are designed to run cross-platform/cross-architecture. The server/node/controller may be hosted on a single machine (for development) or deployed across heterogeneous resources.
 
@@ -10,18 +12,18 @@ The `achilles_server`, `achilles_node` and `achilles_controller` are designed to
 - Designed for developers familiar with the `multiprocessing` module in the standard library with simplicity and ease of use in mind.
 - In addition to the blocking `map` API which requires that developers wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
 - `achilles` allows for composable scalability and novel design patterns as:
-    - Lists, lists of lists and generator functions are accepted as arguments.
+    - Lists (including list comprehensions), lists of lists and generator functions (as first-class object - generator expressions will not work as generators cannot be serialized by `pickle`/`dill`) are accepted as arguments.
         - TIP: Use generator functions together with `imap` or `imap_unordered` to perform distributed computation on arbitrarily large data.
     - The `dill` serializer is used to transfer data between the server/node/controller and `multiprocess` (fork of `multiprocessing` that uses the `dill` serializer instead of `pickle`) is used to perform `Pool.map` on the `achilles_nodes`, so developers are freed from some of the constraints of the `pickle` serializer.
     <br/>
 
-#### Install
+### Install
 `pip install achilles`
 
-#### Quick Start
+### Quick Start
 Start an `achilles_server` listening for connections from `achilles_nodes` at a certain endpoint specified as arguments or in an `.env` file in the `achilles` package's directory.
 
-Then simply import `map`, `imap`, and/or `imap_unordered` from `achilles_main` and use them dynamically in your own code.
+Then simply import `map`, `imap`, and/or `imap_unordered` from `achilles_main` and use them dynamically in your own code (under the hood they create and close `achilles_controller`s).
 
 `map`, `imap` and `imap_unordered` will distribute your function to each `achilles_node` connected to the `achilles_server`. Then, the `achilles_server` will distribute arguments to each `achilles_node` (load balanced and made into a list of arguments if the arguments' type is not already a list) which will then perform your function on the arguments using `multiprocess.Pool.map`.
 
@@ -51,7 +53,6 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
    
    genConfig(host='127.0.0.1', port=9999, username='foo', secret_key='bar')
    runAchillesServer()
-   
     ```
     <br/>
     
@@ -60,7 +61,6 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
     ALERT: achilles_server initiated at 127.0.0.1:9999
     Listening for connections...
     ```
-    <br/>
 
 2) `runAchillesNode(host=None, port=None)` -> run on your local machine or on another machine connected to your network
     
@@ -81,7 +81,6 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
     Connected to achilles_server running at 127.0.0.1:9999
     CLIENT_ID: 0
     ```
-    <br/>       
         
 3) Examples of how to use the 3 most commonly used `multiprocessing.Pool` methods in `achilles`:
     <br/>
@@ -112,7 +111,7 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
        
        [[1, 16, 81, 256, 625, 1296, 2401, 4096], [6561, 10000]]
        ```
-        <br/>
+       
    2) `imap(func, args, callback=None, chunksize=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
         `in:`
         ```python
@@ -137,7 +136,6 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
       {'ARGS_COUNTER': 0, 'RESULT': [1, 16, 81, 256, 625, 1296, 2401, 4096]}
       {'ARGS_COUNTER': 8, 'RESULT': [6561, 10000]}
       ```
-      <br/>
 
      3) `imap_unordered(func, args, callback=None, chunksize=1, host=None, port=None, username=None, secret_key=None)`<br/><br/>
      `in:`
@@ -163,11 +161,10 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
         {'ARGS_COUNTER': 8, 'RESULT': [6561, 10000]}
         {'ARGS_COUNTER': 0, 'RESULT': [1, 16, 81, 256, 625, 1296, 2401, 4096]}
         ```
-        <br/>
 
-### How `achilles` works
+## How `achilles` works 
 
-#### Under the hood
+### Under the hood
 - `Twisted`
     - An event-driven networking engine written in Python and MIT licensed.
 - `dill`
@@ -175,28 +172,31 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
 - `multiprocess`
     - multiprocess is a fork of multiprocessing that uses `dill` instead of `pickle` for serialization. `multiprocessing` is a package for the Python language which supports the spawning of processes using the API of the standard library’s threading module.
 
-#### Examples
+### Examples
 See the `examples` directory for tutorials on various use cases, including:
 - Square numbers/run multiple jobs sequentially
 - Word count (TO DO)
 
-#### How to kill cluster
+### How to kill cluster
 ```python
 from achilles.lineReceiver.achilles_main import killCluster
 
 # simply use the killCluster() command and verify your intent at the prompt
 # killCluster() will search for an .env configuration file in the achilles package's directory
+
 # if it does not exist, specify host, port, username and secret_key as arguments
 # a command is sent to all connected achilles_nodes to stop the Twisted reactor and exit() the process
 
-killCluster()
+# optionally, you can pass command_verified=True to proceed directly with killing the cluster
+
+killCluster(command_verified=True)
 ```
 
-#### Caveats/Things to know
+### Caveats/Things to know
 - `achilles_node`s use all of the CPU cores available on the host machine to perform `multiprocess.Pool.map` (`pool = multiprocess.Pool(multiprocess.cpu_count())`).
 - `achilles` leaves it up to the developer to ensure that the correct packages are installed on `achilles_node`s to perform the function distributed by the `achilles_server` on behalf of the `achilles_controller`. Current recommended solution is to SSH into each machine and `pip install` a `requirements.txt` file.
 - All import statements required by the developer's function, arguments and callback must be included in the definition of the function.
-- The `achilles_server` is currently designed to handle one job at a time (TO DO: add fault tolerance and ability to handle multiple jobs).
+- The `achilles_server` is currently designed to handle one job at a time. For more complicated projects, I highly recommend checking out `Dask` (especially `dask.distributed`) and learning more about directed acyclic graphs (DAGs).
 - `callback_error` argument has yet to be implemented, so detailed information regarding errors can only be gleaned from the interpreter used to launch the `achilles_server`, `achilles_node` or `achilles_controller`. Deploying the server/node/controller on a single machine is recommended for development.
 - `achilles` performs load balancing at runtime and assigns `achilles_node`s arguments by `cpu_count` * `chunksize`.
     - Default `chunksize` is 1.
@@ -222,8 +222,6 @@ killCluster()
              - Fastest way of consuming results received from the `achilles_server`.
              
 
-
-<br/>
 <hr/>
 
 `achilles` is in the early stages of active development and your suggestions/contributions are kindly welcomed.
