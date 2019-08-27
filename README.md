@@ -1,7 +1,7 @@
 # `achilles`
 Distributed/parallel computing in modern Python based on the `multiprocessing.Pool` API (`map`, `imap`, `imap_unordered`).
 
-## What is it?
+## What/why is it?
 The purpose of `achilles` is to make distributed/parallel computing as easy as possible by limiting the required configuration, hiding the details (server/node/controller architecture) and exposing a simple interface based on the popular `multiprocessing.Pool` API.
 
 > `achilles` provides developers with entry-level capabilities for concurrency across a network of machines (see PEP 372 on the intent behind adding `multiprocessing` to the standard library -> https://www.python.org/dev/peps/pep-0371/) using a server/node/controller architecture.
@@ -197,6 +197,7 @@ killCluster(command_verified=True)
 - `achilles` leaves it up to the developer to ensure that the correct packages are installed on `achilles_node`s to perform the function distributed by the `achilles_server` on behalf of the `achilles_controller`. Current recommended solution is to SSH into each machine and `pip install` a `requirements.txt` file.
 - All import statements required by the developer's function, arguments and callback must be included in the definition of the function.
 - The `achilles_server` is currently designed to handle one job at a time. For more complicated projects, I highly recommend checking out `Dask` (especially `dask.distributed`) and learning more about directed acyclic graphs (DAGs).
+- Fault tolerance: if some `achilles_node` disconnects before returning expected results, the argument will be distributed to another `achilles_node` for computation instead of being lost.
 - `callback_error` argument has yet to be implemented, so detailed information regarding errors can only be gleaned from the interpreter used to launch the `achilles_server`, `achilles_node` or `achilles_controller`. Deploying the server/node/controller on a single machine is recommended for development.
 - `achilles` performs load balancing at runtime and assigns `achilles_node`s arguments by `cpu_count` * `chunksize`.
     - Default `chunksize` is 1.
