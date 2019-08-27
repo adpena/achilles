@@ -141,9 +141,7 @@ def imap_unordered(
     if globals_dict is None:
         manager = multiprocess.Manager()
 
-        globals_dict = {
-            "OUTPUT_QUEUE": manager.Queue(),
-        }
+        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     if (
         host is not None
         and port is not None
@@ -221,9 +219,7 @@ def imap(
     if globals_dict is None:
         manager = multiprocess.Manager()
 
-        globals_dict = {
-            "OUTPUT_QUEUE": manager.Queue(),
-        }
+        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     if (
         host is not None
         and port is not None
@@ -383,13 +379,10 @@ def map(
     multiprocess=multiprocess,
 ):
 
-
     if globals_dict is None:
         manager = multiprocess.Manager()
 
-        globals_dict = {
-            "OUTPUT_QUEUE": manager.Queue(),
-        }
+        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     if (
         host is not None
         and port is not None
@@ -451,9 +444,7 @@ def map(
 def setupGlobals():
     manager = multiprocess.Manager()
 
-    globals_dict = {
-        "OUTPUT_QUEUE": manager.Queue(),
-    }
+    globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     return globals_dict
 
 

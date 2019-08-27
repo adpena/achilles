@@ -1,4 +1,10 @@
-from achilles.lineReceiver.achilles_main import map, imap, imap_unordered, setupGlobals, killCluster
+from achilles.lineReceiver.achilles_main import (
+    map,
+    imap,
+    imap_unordered,
+    setupGlobals,
+    killCluster,
+)
 
 
 def achilles_args():

@@ -109,14 +109,14 @@ class AchillesServer(LineReceiver):
             self.proceedWithJob()
 
         elif "RESULT" in data:
+            self.argsBufferDel(data, self.factory.args_buffer)
             # print("RESULTS PACKET:", data)
             if self.factory.response_mode == "OBJECT":
                 self.factory.results.append(data)
                 try:
                     loadBalance(self.factory.args, self)
                 except StopIteration:
-                    handleStopIteration(response_mode="OBJECT", worker=self)
-
+                    self.handleStopIteration(response_mode="OBJECT")
 
             elif (
                 self.factory.response_mode == "STREAM"
@@ -126,8 +126,7 @@ class AchillesServer(LineReceiver):
                 try:
                     loadBalance(self.factory.args, self)
                 except StopIteration:
-                    handleStopIteration(response_mode="STREAM", worker=self)
-
+                    self.handleStopIteration(response_mode="STREAM")
 
         elif "GET_CLUSTER_STATUS" in data and self.AUTHENTICATED is True:
             packet = {"CLUSTER_STATUS": True}
@@ -169,6 +168,7 @@ class AchillesServer(LineReceiver):
         # Flush settings in case another job has already been completed in this lifecycle.
         self.factory.args_path = ""
         self.factory.results = []
+        self.factory.args_buffer = {}
         self.factory.args_counter = 0
         self.factory.callback = callback
 
@@ -200,7 +200,9 @@ class AchillesServer(LineReceiver):
         self.factory.workers = workers_list
         self.factory.lastCounter = len(self.factory.workers) - 1
         for client in self.factory.workers:
-            client.sendLine(dill.dumps({"START_JOB": True, "FUNC": func, "CALLBACK": callback}))
+            client.sendLine(
+                dill.dumps({"START_JOB": True, "FUNC": func, "CALLBACK": callback})
+            )
         self.factory.achilles_controller.sendLine(dill.dumps({"PROCEED": True}))
 
     def proceedWithJob(self):
@@ -208,53 +210,78 @@ class AchillesServer(LineReceiver):
             try:
                 loadBalance(self.factory.args, worker)
             except StopIteration:
-                handleStopIteration(self.factory.response_mode, self)
+                self.handleStopIteration(self.factory.response_mode)
 
+    def argsBufferDel(self, result_packet, args_buffer):
+        del args_buffer[result_packet["ARGS_COUNTER"]]
 
-def handleStopIteration(response_mode, worker):
-    if response_mode == "STREAM":
-        if len(worker.factory.workers) > 1:
-            if worker.factory.lastCounter == 0:
-                print(
-                    "Final results packet has been transmitted to the achilles_controller."
-                )
-                worker.factory.achilles_controller.sendLine(
-                    dill.dumps({"JOB_FINISHED": True})
-                )
-            else:
-                worker.factory.lastCounter = worker.factory.lastCounter - 1
-        elif len(worker.factory.workers) == 1:
-            print(
-                "Final results packet has been transmitted to the achilles_controller."
-            )
-            worker.factory.achilles_controller.sendLine(
-                dill.dumps({"JOB_FINISHED": True})
-            )
-    elif response_mode == "OBJECT":
-        print("The arguments have been exhausted.")
-        if len(worker.factory.workers) > 1:
-            if worker.factory.lastCounter == 0:
-                final_result = worker.factory.gatherResults(worker.factory)
-                worker.factory.achilles_controller.sendLine(
-                    dill.dumps({"FINAL_RESULT": final_result})
-                )
+    def reassignArgFromBuffer(self, args_buffer):
+        args_counter, args_packet = next(iter(args_buffer.items()))
+        packet = dill.dumps(args_packet)
+        self.sendLine(packet)
 
-            else:
-                worker.factory.lastCounter = worker.factory.lastCounter - 1
-        elif len(worker.factory.workers) == 1:
-            final_result = worker.factory.gatherResults(worker.factory)
-            worker.factory.achilles_controller.sendLine(
-                dill.dumps({"FINAL_RESULT": final_result})
-            )
+    def handleStopIteration(self, response_mode):
+        if response_mode == "STREAM":
+            if len(self.factory.workers) > 1:
+                if self.factory.lastCounter == 0:
+                    try:
+                        self.reassignArgFromBuffer(self.factory.args_buffer)
+                    except StopIteration:
+                        print(
+                            "Final results packet has been transmitted to the achilles_controller."
+                        )
+                        self.factory.achilles_controller.sendLine(
+                            dill.dumps({"JOB_FINISHED": True})
+                        )
+                else:
+                    self.factory.lastCounter = self.factory.lastCounter - 1
+            elif len(self.factory.workers) == 1:
+                try:
+                    self.reassignArgFromBuffer(self.factory.args_buffer)
+                except StopIteration:
+                    print(
+                        "Final results packet has been transmitted to the achilles_controller."
+                    )
+                    self.factory.achilles_controller.sendLine(
+                        dill.dumps({"JOB_FINISHED": True})
+                    )
+
+        elif response_mode == "OBJECT":
+            if len(self.factory.workers) > 1:
+                if self.factory.lastCounter == 0:
+                    try:
+                        self.reassignArgFromBuffer(self.factory.args_buffer)
+                    except StopIteration:
+                        final_result = self.factory.gatherResults(self.factory)
+                        self.factory.achilles_controller.sendLine(
+                            dill.dumps({"FINAL_RESULT": final_result})
+                        )
+                        print(
+                            "Final results packet has been transmitted to the achilles_controller."
+                        )
+
+                else:
+                    self.factory.lastCounter = self.factory.lastCounter - 1
+            elif len(self.factory.workers) == 1:
+                try:
+                    self.reassignArgFromBuffer(self.factory.args_buffer)
+                except StopIteration:
+                    final_result = self.factory.gatherResults(self.factory)
+                    self.factory.achilles_controller.sendLine(
+                        dill.dumps({"FINAL_RESULT": final_result})
+                    )
+                    print(
+                        "Final results packet has been transmitted to the achilles_controller."
+                    )
 
 
 def loadBalance(args_iterable, worker):
     test_arg = next(args_iterable)
     if type(test_arg) is list:
-        packet = dill.dumps(
-            {"ARG": test_arg, "ARGS_COUNTER": int(worker.factory.args_counter)}
-        )
-        worker.sendLine(packet)
+        packet = {"ARG": test_arg, "ARGS_COUNTER": int(worker.factory.args_counter)}
+        argsBufferAdd(packet, worker.factory.args_buffer)
+
+        worker.sendLine(dill.dumps(packet))
         """print(
             f"Packet with arg {worker.factory.args_counter} sent to {worker.CLIENT_ID}"
         )"""
@@ -271,12 +298,21 @@ def loadBalance(args_iterable, worker):
                 worker.factory.args_counter = worker.factory.args_counter + 1
             except StopIteration:
                 worker.sendLine(dill.dumps(packet))
+                argsBufferAdd(packet, worker.factory.args_buffer)
                 sent_packet = True
                 break
         if sent_packet is not True:
+            argsBufferAdd(packet, worker.factory.args_buffer)
+
             worker.sendLine(dill.dumps(packet))
         # print(f"Packet with arg {args_counter} sent to {worker.CLIENT_ID}")
         worker.factory.args_counter = worker.factory.args_counter + 1
+
+
+def argsBufferAdd(arg_packet, args_buffer):
+    args_buffer = args_buffer
+    args_buffer[arg_packet["ARGS_COUNTER"]] = arg_packet
+    return args_buffer
 
 
 class AchillesServerFactory(Factory):
@@ -288,6 +324,7 @@ class AchillesServerFactory(Factory):
     workers = []
     achilles_controller = None
     args = None
+    args_buffer = {}
     args_path = ""
     args_counter = 0
     results = []
