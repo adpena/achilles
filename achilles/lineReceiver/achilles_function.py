@@ -24,6 +24,13 @@ def achilles_callback(result):
     return result ** 2
 
 
+def achilles_reducer(list_of_results):
+    sum_of_results = [0]
+    for result in list_of_results:
+        sum_of_results[0] += result
+    return sum_of_results
+
+
 """def achilles_function2(arg):
     r = get(
         arg,

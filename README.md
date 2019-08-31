@@ -12,7 +12,7 @@ The `achilles_server`, `achilles_node` and `achilles_controller` are designed to
 - Designed for developers familiar with the `multiprocessing` module in the standard library with simplicity and ease of use in mind.
 - In addition to the blocking `map` API which requires that developers wait for all computation to be finished before accessing results (common in such packages), `imap`/`imap_unordered` allow developers to process results as they are returned to the `achilles_controller` by the `achilles_server`.
 - `achilles` allows for composable scalability and novel design patterns as:
-    - Lists (including list comprehensions), lists of lists and generator functions (as first-class object - generator expressions will not work as generators cannot be serialized by `pickle`/`dill`) are accepted as arguments.
+    - Iterables including lists, lists of lists and generator functions (as first-class object - generator expressions will not work as generators cannot be serialized by `pickle`/`dill`) are accepted as arguments.
         - TIP: Use generator functions together with `imap` or `imap_unordered` to perform distributed computation on arbitrarily large data.
     - The `dill` serializer is used to transfer data between the server/node/controller and `multiprocess` (fork of `multiprocessing` that uses the `dill` serializer instead of `pickle`) is used to perform `Pool.map` on the `achilles_nodes`, so developers are freed from some of the constraints of the `pickle` serializer.
     <br/>
@@ -84,7 +84,7 @@ Each `achilles_node` finishes its work, returns the results to the `achilles_ser
         
 3) Examples of how to use the 3 most commonly used `multiprocessing.Pool` methods in `achilles`:
     <br/>
-    >> Note: `map`, `imap` and `imap_unordered` currently accept lists, lists of lists, and generator functions as `achilles_args`.
+    >> Note: `map`, `imap` and `imap_unordered` currently accept iterables including - but not limited - to lists, lists of lists, and generator functions as `achilles_args`.
                                                          
     >> Also note:  if there isn't already a `.env` configuration file in the `achilles` package directory, must use `genConfig(host, port, username, secret_key)` before using or include `host`, `port`, `username` and `secret_key` as arguments when using `map`, `imap`, `imap_unordered`.
     
