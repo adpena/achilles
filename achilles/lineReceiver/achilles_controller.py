@@ -16,6 +16,7 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
 from multiprocess import cpu_count, Process, Queue, Manager
+import multiprocess
 from datetime import datetime
 
 
@@ -56,6 +57,8 @@ class AchillesController(LineReceiver):
         self.command = command
         self.command_verified = command_verified
 
+        multiprocess.current_process().authkey = b"12345"
+
     def lineReceived(self, data):
         data = dill.loads(data)
         if "GREETING" in data:
@@ -79,6 +82,8 @@ class AchillesController(LineReceiver):
                 )
                 if self.command == "KILL_CLUSTER":
                     self.kill_cluster()
+                elif self.command == "GET_CLUSTER_STATUS":
+                    self.get_cluster_status()
                 elif self.achilles_function is None and self.achilles_args is None:
                     self.command_interface()
                 else:
@@ -101,86 +106,16 @@ class AchillesController(LineReceiver):
             else:
                 self.sendLine(dill.dumps({"VERIFY": True}))
 
-        elif "RESULT" in data and self.response_mode == "STREAM":
-            if self.achilles_function is None and self.achilles_args is None:
-                # If STREAM is your chosen response mode, handle results packets here.
-                print(data)
-            else:
-                self.globals_dict["OUTPUT_QUEUE"].put(data)
-
-        elif "RESULT" in data and self.response_mode == "SQLITE":
-            if self.sqlite_db_created is False:
-                self.sqlite_db = datetime.now().strftime("%Y%m%d %H%M%S") + ".db"
-                conn = sqlite3.connect(self.sqlite_db)
-                c = conn.cursor()
-                c.execute(
-                    "CREATE TABLE results (args_counter real, abs_counter real, result text)"
-                )
-                self.sqlite_db_created = True
-                if len(data["RESULT"]) == 1:
-                    try:
-                        instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {data['RESULT'][0]})"""
-                        # print(instruction)
-                        c.execute(instruction)
-                        self.abs_counter = self.abs_counter + 1
-                    except BaseException:
-                        instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {json.dumps(data['RESULT'][0])})"""
-                        # print(instruction)
-                        c.execute(instruction)
-                        self.abs_counter = self.abs_counter + 1
-
-                else:
-                    for i in range(len(data["RESULT"])):
-                        try:
-                            instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {data['RESULT'][i]})"""
-                            # print(instruction)
-                            c.execute(instruction)
-                            self.abs_counter = self.abs_counter + 1
-                        except BaseException:
-                            instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {json.dumps(data['RESULT'][i])})"""
-                            # print(instruction)
-                            c.execute(instruction)
-                            self.abs_counter + self.abs_counter + 1
-
-                c.close()
-
-            else:
-                conn = sqlite3.connect(self.sqlite_db)
-                c = conn.cursor()
-                if len(data["RESULT"]) == 1:
-                    try:
-                        instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {data['RESULT'][0]})"""
-                        # print(instruction)
-                        c.execute(instruction)
-                        self.abs_counter = self.abs_counter + 1
-                    except BaseException:
-                        instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {json.dumps(data['RESULT'][0])})"""
-                        # print(instruction)
-                        c.execute(instruction)
-                        self.abs_counter = self.abs_counter + 1
-
-                else:
-                    for i in range(len(data["RESULT"])):
-                        try:
-                            instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {data['RESULT'][i]})"""
-                            # print(instruction)
-                            c.execute(instruction)
-                            self.abs_counter = self.abs_counter + 1
-                        except BaseException:
-                            instruction = f"""INSERT INTO results VALUES ({data['ARGS_COUNTER']}, {self.abs_counter}, {json.dumps(data['RESULT'][i])})"""
-                            # print(instruction)
-                            c.execute(instruction)
-                            self.abs_counter = self.abs_counter + 1
-
-                c.close()
-
         elif "FINAL_RESULT" in data:
+            self.globals_dict["OUTPUT_QUEUE"].put("FINAL_RESULT")
+            final_result = self.gatherResults()
+
             if self.achilles_function is None and self.achilles_args is None:
-                print("FINAL RESULT:", data["FINAL_RESULT"])
+                # FINAL_RESULT is an indication that the computation is finished and all results are in the OUTPUT_QUEUE
+                print(final_result)
                 self.command_interface()
             else:
-                # print("FINAL RESULT:", data["FINAL_RESULT"])
-                self.globals_dict["OUTPUT_QUEUE"].put(data["FINAL_RESULT"])
+                self.globals_dict["OUTPUT_QUEUE"].put(final_result)
                 self.transport.loseConnection()
                 reactor.stop()
 
@@ -189,13 +124,18 @@ class AchillesController(LineReceiver):
                 self.globals_dict["OUTPUT_QUEUE"].put("JOB_FINISHED")
             else:
                 self.transport.loseConnection()
-                reactor.crash()
+                reactor.stop()
 
             self.transport.loseConnection()
 
         elif "CLUSTER_STATUS" in data:
-            print("CLUSTER STATUS:", data)
-            self.command_interface()
+            if self.globals_dict is None:
+                print("CLUSTER STATUS:", data)
+                self.command_interface()
+            else:
+                self.globals_dict["OUTPUT_QUEUE"].put(data)
+                self.transport.loseConnection()
+                reactor.crash()
 
         elif "KILL_NODE" in data:
             stderr.write(
@@ -252,6 +192,7 @@ class AchillesController(LineReceiver):
             achilles_args = self.achilles_args
             achilles_callback = self.achilles_callback
             achilles_reducer = self.achilles_reducer
+            output_queue = self.globals_dict["OUTPUT_QUEUE"]
             args_path = None
             modules = None
             group = None
@@ -269,6 +210,7 @@ class AchillesController(LineReceiver):
                 "GROUP": group,
                 "RESPONSE_MODE": response_mode,
                 "CHUNKSIZE": chunksize,
+                "OUTPUT_QUEUE": output_queue,
             }
         )
         self.sendLine(packet)
@@ -276,7 +218,7 @@ class AchillesController(LineReceiver):
     def get_cluster_status(self):
         packet = dill.dumps({"GET_CLUSTER_STATUS": "GET_CLUSTER_STATUS"})
         self.sendLine(packet)
-        print("ALERT: Requested cluster status.")
+        # print("ALERT: Requested cluster status.")
 
     def kill_cluster(self):
         if self.command_verified is True:
@@ -332,3 +274,21 @@ class AchillesController(LineReceiver):
                 "Sorry, that response mode is not recognized. Please choose OBJECT, SQLITE or STREAM.\n"
             )
             self.init_achilles_compute()
+
+    def gatherResults(self):
+        final_results_local = []
+        final_result = []
+        while True:
+            result = self.globals_dict["OUTPUT_QUEUE"].get()
+            if result != "FINAL_RESULT":
+                final_results_local.append(result)
+            else:
+                break
+
+        final_results_sorted = sorted(
+            final_results_local, key=lambda k: k["ARGS_COUNTER"]
+        )
+        for result_sorted in final_results_sorted:
+            final_result.append(result_sorted["RESULT"])
+
+        return final_result

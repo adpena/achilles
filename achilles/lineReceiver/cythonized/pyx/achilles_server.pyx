@@ -161,7 +161,14 @@ class AchillesServer(LineReceiver):
             print("UNEXPECTED", data)
 
     def startJob(
-        self, func, args=(), args_path="", modules=None, callback=None, reducer=None, group=""
+        self,
+        func,
+        args=(),
+        args_path="",
+        modules=None,
+        callback=None,
+        reducer=None,
+        group="",
     ):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
@@ -203,7 +210,14 @@ class AchillesServer(LineReceiver):
         self.factory.lastCounter = len(self.factory.workers) - 1
         for client in self.factory.workers:
             client.sendLine(
-                dill.dumps({"START_JOB": True, "FUNC": func, "CALLBACK": callback, "REDUCER": reducer})
+                dill.dumps(
+                    {
+                        "START_JOB": True,
+                        "FUNC": func,
+                        "CALLBACK": callback,
+                        "REDUCER": reducer,
+                    }
+                )
             )
         self.factory.achilles_controller.sendLine(dill.dumps({"PROCEED": True}))
 

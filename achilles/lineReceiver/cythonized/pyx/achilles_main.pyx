@@ -487,5 +487,44 @@ def killCluster(
         runAchillesController(command=command, command_verified=command_verified)
 
 
+def getClusterStatus(
+    command="GET_CLUSTER_STATUS",
+    host=None,
+    port=None,
+    username=None,
+    secret_key=None,
+    globals_dict=None,
+    runAchillesController=runAchillesController,
+):
+
+    if globals_dict is None:
+        manager = multiprocess.Manager()
+
+        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
+
+    if (
+        host is not None
+        and port is not None
+        and username is not None
+        and secret_key is not None
+    ):
+        a = multiprocess.Process(target=runAchillesController, args=(None, None, None, None, None, host, port, username, secret_key, None, command))
+        a.start()
+
+    else:
+        a = multiprocess.Process(target=runAchillesController, args=(None, None, None, None, None, host, port, username, secret_key, None, command))
+        a.start()
+
+    while True:
+        cluster_status = globals_dict["OUTPUT_QUEUE"].get()
+        if cluster_status is not None:
+            # print("CLUSTER_STATUS", cluster_status)
+            a.terminate()
+            return cluster_status
+        else:
+            # print(cluster_status)
+            time.sleep(1)
+
+
 if __name__ == "__main__":
     runAchillesController()

@@ -135,4 +135,4 @@ dmypy.json
 *.db
 
 # Yelp review database from /examples/word_count
-review.json
+*.json

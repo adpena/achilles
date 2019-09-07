@@ -32,7 +32,7 @@ class AchillesNode(LineReceiver):
         self.handleData(data)
 
     def handleData(self, data):
-        print(data)
+        # print(data)
         data = dill.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]

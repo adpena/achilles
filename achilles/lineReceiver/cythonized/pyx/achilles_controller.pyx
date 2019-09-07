@@ -79,6 +79,8 @@ class AchillesController(LineReceiver):
                 )
                 if self.command == "KILL_CLUSTER":
                     self.kill_cluster()
+                elif self.command == "GET_CLUSTER_STATUS":
+                    self.get_cluster_status()
                 elif self.achilles_function is None and self.achilles_args is None:
                     self.command_interface()
                 else:
@@ -189,13 +191,18 @@ class AchillesController(LineReceiver):
                 self.globals_dict["OUTPUT_QUEUE"].put("JOB_FINISHED")
             else:
                 self.transport.loseConnection()
-                reactor.crash()
+                reactor.stop()
 
             self.transport.loseConnection()
 
         elif "CLUSTER_STATUS" in data:
-            print("CLUSTER STATUS:", data)
-            self.command_interface()
+            if False:
+                print("CLUSTER STATUS:", data)
+                self.command_interface()
+            else:
+                self.globals_dict["OUTPUT_QUEUE"].put(data)
+                self.transport.loseConnection()
+                reactor.crash()
 
         elif "KILL_NODE" in data:
             stderr.write(
