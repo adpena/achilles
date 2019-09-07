@@ -15,8 +15,7 @@ import getpass
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.internet import reactor
-from multiprocess import cpu_count, Process, Queue, Manager
-import multiprocess
+from multiprocess import cpu_count, Process, Queue, Manager, current_process
 from datetime import datetime
 
 
@@ -57,7 +56,7 @@ class AchillesController(LineReceiver):
         self.command = command
         self.command_verified = command_verified
 
-        multiprocess.current_process().authkey = b"12345"
+        current_process().authkey = b"176778741"
 
     def lineReceived(self, data):
         data = dill.loads(data)

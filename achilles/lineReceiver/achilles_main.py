@@ -452,7 +452,7 @@ def map(
 
 
 def setupGlobals():
-    multiprocess.current_process().authkey = b"12345"
+    multiprocess.current_process().authkey = b"176778741"
 
     manager = multiprocess.Manager()
 

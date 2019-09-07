@@ -14,7 +14,7 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.endpoints import TCP4ServerEndpoint
 
-import multiprocess
+from multiprocess import current_process
 
 
 class AchillesServer(LineReceiver):
@@ -35,7 +35,7 @@ class AchillesServer(LineReceiver):
         self.AUTHENTICATED = False
         self.CLIENT_ID = self.factory.totalProtocols
 
-        multiprocess.current_process().authkey = b"12345"
+        current_process().authkey = b"176778741"
 
     def connectionMade(self):
         # print("Starting connection #:", self.factory.numProtocols)
@@ -361,7 +361,7 @@ class AchillesServerFactory(Factory):
         AchillesServerFactory.USERNAME = username
         AchillesServerFactory.SECRET_KEY = secret_key
 
-        multiprocess.current_process().authkey = b"12345"
+        current_process().authkey = b"176778741"
 
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)

@@ -31,7 +31,7 @@ class AchillesNode(LineReceiver):
         self.reducer = None
         self.output_queue = None
 
-        multiprocess.current_process().authkey = b"12345"
+        multiprocess.current_process().authkey = b"176778741"
 
     def lineReceived(self, data):
         self.handleData(data)
