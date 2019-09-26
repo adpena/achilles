@@ -14,6 +14,8 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.endpoints import TCP4ServerEndpoint
 
+from multiprocess import current_process
+
 
 class AchillesServer(LineReceiver):
     MAX_LENGTH = 999999999999999999999999999999999
@@ -32,6 +34,8 @@ class AchillesServer(LineReceiver):
         self.DATETIME_CONNECTED = ""
         self.AUTHENTICATED = False
         self.CLIENT_ID = self.factory.totalProtocols
+
+        current_process().authkey = b"176778741"
 
     def connectionMade(self):
         # print("Starting connection #:", self.factory.numProtocols)
@@ -64,6 +68,7 @@ class AchillesServer(LineReceiver):
                 # The user is authenticated to distribute commands.
                 self.AUTHENTICATED = True
                 self.IP = data["IP"]
+                self.CLIENT_ID = "CONTROLLER"
                 self.CPU_COUNT = data["CPU_COUNT"]
                 self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
                 self.sendLine(dill.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
@@ -98,10 +103,13 @@ class AchillesServer(LineReceiver):
             group = data["GROUP"]
             response_mode = data["RESPONSE_MODE"]
             chunksize = data["CHUNKSIZE"]
+            output_queue = data["OUTPUT_QUEUE"]
             self.factory.response_mode = response_mode
             self.factory.chunksize = chunksize
 
-            self.startJob(func, args, args_path, modules, callback, reducer, group)
+            self.startJob(
+                func, args, args_path, modules, callback, reducer, group, output_queue
+            )
         elif self.AUTHENTICATED is False and "READY" in data:
             # print(f"CLIENT STATUS: {data}")
             pass
@@ -113,7 +121,6 @@ class AchillesServer(LineReceiver):
             self.argsBufferDel(data, self.factory.args_buffer)
             # print("RESULTS PACKET:", data)
             if self.factory.response_mode == "OBJECT":
-                self.factory.results.append(data)
                 try:
                     loadBalance(self.factory.args, self)
                 except StopIteration:
@@ -123,7 +130,6 @@ class AchillesServer(LineReceiver):
                 self.factory.response_mode == "STREAM"
                 or self.factory.response_mode == "SQLITE"
             ):
-                self.factory.achilles_controller.sendLine(dill.dumps(data))
                 try:
                     loadBalance(self.factory.args, self)
                 except StopIteration:
@@ -169,15 +175,17 @@ class AchillesServer(LineReceiver):
         callback=None,
         reducer=None,
         group="",
+        output_queue=None,
     ):
         # Here is where the magic happens. Hungry consumers - feed them once and they keep
         # asking for more until the args are exhausted.
 
-        # Flush settings in case another job has already been completed in this lifecycle.
+        # Flush settings in case another job has already been completed in this achilles_server's lifecycle.
         self.factory.args_path = ""
         self.factory.results = []
         self.factory.args_buffer = {}
         self.factory.args_counter = 0
+
         self.factory.callback = callback
         self.factory.reducer = reducer
 
@@ -216,6 +224,7 @@ class AchillesServer(LineReceiver):
                         "FUNC": func,
                         "CALLBACK": callback,
                         "REDUCER": reducer,
+                        "OUTPUT_QUEUE": output_queue,
                     }
                 )
             )
@@ -268,9 +277,8 @@ class AchillesServer(LineReceiver):
                     try:
                         self.reassignArgFromBuffer(self.factory.args_buffer)
                     except StopIteration:
-                        final_result = self.factory.gatherResults(self.factory)
                         self.factory.achilles_controller.sendLine(
-                            dill.dumps({"FINAL_RESULT": final_result})
+                            dill.dumps({"FINAL_RESULT": True})
                         )
                         print(
                             "Final results packet has been transmitted to the achilles_controller."
@@ -282,9 +290,8 @@ class AchillesServer(LineReceiver):
                 try:
                     self.reassignArgFromBuffer(self.factory.args_buffer)
                 except StopIteration:
-                    final_result = self.factory.gatherResults(self.factory)
                     self.factory.achilles_controller.sendLine(
-                        dill.dumps({"FINAL_RESULT": final_result})
+                        dill.dumps({"FINAL_RESULT": True})
                     )
                     print(
                         "Final results packet has been transmitted to the achilles_controller."
@@ -355,15 +362,10 @@ class AchillesServerFactory(Factory):
         AchillesServerFactory.USERNAME = username
         AchillesServerFactory.SECRET_KEY = secret_key
 
+        current_process().authkey = b"176778741"
+
     def buildProtocol(self, addr):
         return AchillesServer(factory=AchillesServerFactory)
-
-    def gatherResults(self):
-        final_results = []
-        self.results = sorted(self.results, key=lambda k: k["ARGS_COUNTER"])
-        for result in self.results:
-            final_results.append(result["RESULT"])
-        return final_results
 
 
 def runAchillesServer(host=None, port=None, username=None, secret_key=None):

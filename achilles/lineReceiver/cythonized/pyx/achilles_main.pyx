@@ -144,9 +144,9 @@ def imap_unordered(
 ):
 
     if globals_dict is None:
-        manager = multiprocess.Manager()
 
-        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
+        globals_dict = setupGlobals()
+
     if (
         host is not None
         and port is not None
@@ -223,9 +223,8 @@ def imap(
 ):
 
     if globals_dict is None:
-        manager = multiprocess.Manager()
+        globals_dict = setupGlobals()
 
-        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     if (
         host is not None
         and port is not None
@@ -390,9 +389,8 @@ def map(
 ):
 
     if globals_dict is None:
-        manager = multiprocess.Manager()
+        globals_dict = setupGlobals()
 
-        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
     if (
         host is not None
         and port is not None
@@ -441,6 +439,7 @@ def map(
     )
 
     a.start()
+    a.join()
     while True:
         final_result = globals_dict["OUTPUT_QUEUE"].get()
         if final_result is not None:
@@ -449,10 +448,12 @@ def map(
             return final_result
         else:
             # print(final_result)
-            time.sleep(1)
+            time.sleep(0.1)
 
 
 def setupGlobals():
+    multiprocess.current_process().authkey = b"176778741"
+
     manager = multiprocess.Manager()
 
     globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
@@ -498,9 +499,7 @@ def getClusterStatus(
 ):
 
     if globals_dict is None:
-        manager = multiprocess.Manager()
-
-        globals_dict = {"OUTPUT_QUEUE": manager.Queue()}
+        globals_dict = setupGlobals()
 
     if (
         host is not None
@@ -508,11 +507,64 @@ def getClusterStatus(
         and username is not None
         and secret_key is not None
     ):
-        a = multiprocess.Process(target=runAchillesController, args=(None, None, None, None, None, host, port, username, secret_key, None, command))
+        a = multiprocess.Process(
+            target=runAchillesController,
+            args=(
+                None,
+                None,
+                None,
+                None,
+                None,
+                host,
+                port,
+                username,
+                secret_key,
+                globals_dict,
+                None,
+                command,
+            ),
+        )
         a.start()
 
     else:
-        a = multiprocess.Process(target=runAchillesController, args=(None, None, None, None, None, host, port, username, secret_key, None, command))
+        try:
+            if __name__ != "__main__":
+                import achilles
+
+                dotenv_path = (
+                    abspath(dirname(achilles.__file__)) + "\\lineReceiver\\.env"
+                )
+            else:
+                basedir = abspath(dirname(__file__))
+                dotenv_path = join(basedir, ".env")
+            load_dotenv(dotenv_path, override=True)
+            port = int(getenv("PORT"))
+            host = getenv("HOST")
+            username = getenv("USERNAME")
+            secret_key = getenv("SECRET_KEY")
+        except (KeyError, NameError):
+            host = host
+            port = port
+            username = username
+            secret_key = secret_key
+
+        a = multiprocess.Process(
+            target=runAchillesController,
+            args=(
+                None,
+                None,
+                None,
+                None,
+                None,
+                host,
+                port,
+                username,
+                secret_key,
+                globals_dict,
+                None,
+                command,
+            ),
+        )
         a.start()
 
     while True:
@@ -523,7 +575,7 @@ def getClusterStatus(
             return cluster_status
         else:
             # print(cluster_status)
-            time.sleep(1)
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":

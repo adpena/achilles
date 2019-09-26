@@ -68,11 +68,13 @@ class AchillesServer(LineReceiver):
                 # The user is authenticated to distribute commands.
                 self.AUTHENTICATED = True
                 self.IP = data["IP"]
+                self.CLIENT_ID = "CONTROLLER"
                 self.CPU_COUNT = data["CPU_COUNT"]
                 self.DATETIME_CONNECTED = data["DATETIME_CONNECTED"]
                 self.sendLine(dill.dumps({"AUTHENTICATED": self.AUTHENTICATED}))
                 print(f"User {data['USERNAME']} is authenticated.")
                 self.factory.achilles_controller = self
+                self.factory.totalProtocols = self.factory.totalProtocols - 1
 
                 # for client in self.factory.clients:
                 # print(client.__dict__)

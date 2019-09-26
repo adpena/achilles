@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from multiprocess import Pool, cpu_count
+import multiprocess
+
 import socket
 import dill
 
@@ -27,11 +29,15 @@ class AchillesNode(LineReceiver):
         self.func = None
         self.callback = None
         self.reducer = None
+        self.output_queue = None
+
+        multiprocess.current_process().authkey = b"176778741"
 
     def lineReceived(self, data):
         self.handleData(data)
 
     def handleData(self, data):
+        # print(data)
         data = dill.loads(data)
         if "GREETING" in data:
             greeting = data["GREETING"]
@@ -58,6 +64,8 @@ class AchillesNode(LineReceiver):
             self.callback = callback
             reducer = data["REDUCER"]
             self.reducer = reducer
+            output_queue = data["OUTPUT_QUEUE"]
+            self.output_queue = data["OUTPUT_QUEUE"]
             packet = dill.dumps({"CLIENT_ID": self.client_id, "READY": True})
             # print("START_JOB RESPONSE:", packet)
             self.sendLine(packet)
@@ -74,9 +82,10 @@ class AchillesNode(LineReceiver):
                 result = self.reducer(result)
             else:
                 pass
-            packet = dill.dumps(
+            self.output_queue.put(
                 {"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": result}
             )
+            packet = dill.dumps({"ARGS_COUNTER": data["ARGS_COUNTER"], "RESULT": True})
             # print("RESPONSE PACKET:", packet)
             self.sendLine(packet)
         elif "KILL_NODE" in data:
