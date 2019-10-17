@@ -52,7 +52,7 @@ class AchillesNode(LineReceiver):
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
                     "CPU_COUNT": cpu_count(),
-                    "DATETIME_CONNECTED": datetime.now(),
+                    "DATETIME_CONNECTED": datetime.utcnow(),
                     "CLIENT_ID": self.client_id,
                 }
             )

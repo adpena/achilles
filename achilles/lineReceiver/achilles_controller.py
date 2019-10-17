@@ -67,7 +67,7 @@ class AchillesController(LineReceiver):
                 {
                     "IP": socket.gethostbyname(socket.gethostname()),
                     "CPU_COUNT": cpu_count(),
-                    "DATETIME_CONNECTED": datetime.now(),
+                    "DATETIME_CONNECTED": datetime.utcnow(),
                     "USERNAME": self.USERNAME,
                     "SECRET_KEY": self.SECRET_KEY,
                 }
