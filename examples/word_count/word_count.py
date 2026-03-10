@@ -1,4 +1,5 @@
 from achilles.lineReceiver.cythonized.achilles_main import imap_unordered
+from pathlib import Path
 
 
 def achilles_function(sentence):
@@ -18,12 +19,9 @@ def achilles_function(sentence):
 def achilles_args():
     import json
 
-    with open(
-        "C:\\Users\\Shadow\\Documents\\GitHub\\achilles\\examples\\word_count\\review.json",
-        "r",
-        encoding="utf-8",
-        newline="",
-    ) as reviews:
+    reviews_path = Path(__file__).with_name("review.json")
+
+    with reviews_path.open("r", encoding="utf-8", newline="") as reviews:
         for review in reviews:
             review_json = json.loads(review)
             review_text = review_json["text"]

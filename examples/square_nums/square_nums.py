@@ -5,15 +5,15 @@ from achilles.lineReceiver.achilles_main import (
     setupGlobals,
     killCluster,
 )
+from pathlib import Path
 
 
 def achilles_args():
     import ast
 
-    with open(
-        "C:\\Users\\Shadow\\Documents\\GitHub\\achilles\\examples\\square_nums\\achilles_args.txt",
-        "r",
-    ) as args:
+    args_path = Path(__file__).with_name("achilles_args.txt")
+
+    with args_path.open("r") as args:
         first_arg = args.readline()
         if type(ast.literal_eval(first_arg)) is list:
             yield ast.literal_eval(first_arg)

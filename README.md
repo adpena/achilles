@@ -228,3 +228,7 @@ killCluster(command_verified=True)
 `achilles` is in the early stages of active development and your suggestions/contributions are kindly welcomed.
 
 `achilles` is written and maintained by Alejandro Peña. Email me at adpena at gmail dot com.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
